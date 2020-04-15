@@ -6,6 +6,7 @@ from psycopg2 import pool
 import socket
 import logging
 from _collections import defaultdict
+import threading
 
 # setting all logs
 __all__ = ["MyHTTPServer"]
@@ -29,7 +30,7 @@ class TokenConn:
         if self._pool and self.conn and not self._pool.closed:
             self._pool.putconn(self.conn)
 
-    async def connect_to_db(self):
+    def connect_to_db(self):
         self.conn = self._pool.getconn()
 
     @property
@@ -99,7 +100,8 @@ class MyHTTPServer:
         if self._pool:
             self._pool.closeall()
 
-    async def serve_forever(self):
+
+    def serve_forever(self):
         serv_sock = socket.socket(
             socket.AF_INET,
             socket.SOCK_STREAM,
@@ -109,34 +111,36 @@ class MyHTTPServer:
             serv_sock.listen()
 
             while True:
-                conn, _ = serv_sock.accept()
+                conn, address = serv_sock.accept()
                 try:
-                    await self.serve_client(conn)
+                    th = threading.Thread(target=self.serve_client, args=(conn, address))
+                    th.start()
                 except Exception as e:
                     logging.warning(f'Client serving failed: {e}')
+
         finally:
             serv_sock.close()
 
-    async def serve_client(self, conn):
+    def serve_client(self, conn, address):
         try:
-            logging.info("start parsing")
-            req = await self.parse_request(conn)
-            resp = await self.handle_request(req)
-            await self.send_response(conn, resp)
+            logging.info(f"connected client: {address}")
+            req =  self.parse_request(conn)
+            resp =  self.handle_request(req)
+            self.send_response(conn, resp)
         except ConnectionResetError:
             conn = None
             logging.warning("base disconnected")
         except Exception as e:
-            await self.send_error(conn, e)
+             self.send_error(conn, e)
 
         if conn:
             req.rfile.close()
             conn.close()
 
-    async def parse_request(self, conn):
+    def parse_request(self, conn):
         rfile = conn.makefile('rb')
-        method, target, ver = await self.parse_request_line(rfile)
-        headers = await self.parse_headers(rfile)
+        method, target, ver =  self.parse_request_line(rfile)
+        headers =  self.parse_headers(rfile)
         host = headers.get('Host')
         if not host:
             raise HTTPError(400, 'Bad request',
@@ -146,7 +150,7 @@ class MyHTTPServer:
             raise HTTPError(404, 'Not found')
         return Request(method, target, ver, headers, rfile)
 
-    async def parse_request_line(self, rfile):
+    def parse_request_line(self, rfile):
         raw = rfile.readline(MAX_LINE + 1)
         if len(raw) > MAX_LINE:
             raise HTTPError(400, 'Bad request',
@@ -163,7 +167,7 @@ class MyHTTPServer:
             raise HTTPError(505, 'HTTP Version Not Supported')
         return method, target, ver
 
-    async def parse_headers(self, rfile):
+    def parse_headers(self, rfile):
         headers = []
         while True:
             line = rfile.readline(MAX_LINE + 1)
@@ -180,10 +184,10 @@ class MyHTTPServer:
         sheaders = b''.join(headers).decode('iso-8859-1')
         return Parser().parsestr(sheaders)
 
-    async def handle_request(self, req: Request) -> Response:
+    def handle_request(self, req: Request) -> Response:
         pass
 
-    async def send_response(self, conn, resp):
+    def send_response(self, conn, resp):
         wfile = conn.makefile('wb')
         status_line = f'HTTP/1.1 {resp.status} {resp.reason}\r\n'
         wfile.write(status_line.encode('iso-8859-1'))
@@ -201,7 +205,7 @@ class MyHTTPServer:
         wfile.flush()
         wfile.close()
 
-    async def send_error(self, conn, err):
+    def send_error(self, conn, err):
         try:
             status = err.status
             reason = err.reason
@@ -214,4 +218,4 @@ class MyHTTPServer:
         resp = Response(status, reason,
                         [('Content-Length', len(body))],
                         body)
-        await self.send_response(conn, resp)
+        self.send_response(conn, resp)
