@@ -92,7 +92,7 @@ class MyHTTPServer:
             logging.info("connection pool created successfully")
         self._users_conn = self._pool.getconn()
         self._users = init_users(self._users_conn)
-
+        self._serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, proto=0)
         logging.info("server initialized")
 
     def __del__(self):
@@ -100,18 +100,13 @@ class MyHTTPServer:
         if self._pool:
             self._pool.closeall()
 
-
     def serve_forever(self):
-        serv_sock = socket.socket(
-            socket.AF_INET,
-            socket.SOCK_STREAM,
-            proto=0)
         try:
-            serv_sock.bind((self._host, self._port))
-            serv_sock.listen()
+            self._serv_sock.bind((self._host, self._port))
+            self._serv_sock.listen()
 
             while True:
-                conn, address = serv_sock.accept()
+                conn, address = self._serv_sock.accept()
                 try:
                     th = threading.Thread(target=self.serve_client, args=(conn, address))
                     th.start()
@@ -119,28 +114,40 @@ class MyHTTPServer:
                     logging.warning(f'Client serving failed: {e}')
 
         finally:
-            serv_sock.close()
+            self._serv_sock.close()
 
     def serve_client(self, conn, address):
+        req = None  # for net cat using
         try:
             logging.info(f"connected client: {address}")
-            req =  self.parse_request(conn)
-            resp =  self.handle_request(req)
+            req = self.parse_request(conn)
+            resp = self.handle_request(req, address)
             self.send_response(conn, resp)
         except ConnectionResetError:
             conn = None
             logging.warning("base disconnected")
         except Exception as e:
-             self.send_error(conn, e)
+            try:
+                self.send_error(conn, e)
+            except BrokenPipeError as er:
+                logging.warning(f'{er}')
 
         if conn:
-            req.rfile.close()
+            if req:
+                req.rfile.close()
+            # не стоит рвать соедиение сразу после обработки запроса, учитывая что это чат
+            for user in self._users.values():
+                if user.get('address') and user.get('address') == address:
+                    pass  # TODO: here should be return statement - will fix after testing with client
+            # for other handlers connection should be closed
+            print("close connection")
             conn.close()
+            return
 
     def parse_request(self, conn):
         rfile = conn.makefile('rb')
-        method, target, ver =  self.parse_request_line(rfile)
-        headers =  self.parse_headers(rfile)
+        method, target, ver = self.parse_request_line(rfile)
+        headers = self.parse_headers(rfile)
         host = headers.get('Host')
         if not host:
             raise HTTPError(400, 'Bad request',
@@ -184,7 +191,7 @@ class MyHTTPServer:
         sheaders = b''.join(headers).decode('iso-8859-1')
         return Parser().parsestr(sheaders)
 
-    def handle_request(self, req: Request) -> Response:
+    def handle_request(self, req: Request, address) -> Response:
         pass
 
     def send_response(self, conn, resp):

@@ -13,7 +13,7 @@ logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(a
                     level=logging.DEBUG)
 
 
-def handle_response(req: Request, resp_body, encoding: str, default=None) -> Response:
+def handle_response(req: Request, resp_body, encoding: str, default=None, keep_alive=False) -> Response:
     accept = req.headers.get('Accept')
     if 'application/json' in accept:
         contentType = f'application/json; charset={encoding}'
@@ -25,6 +25,9 @@ def handle_response(req: Request, resp_body, encoding: str, default=None) -> Res
     body = body.encode(f'{encoding}')
     headers = [('Content-Type', contentType),
                ('Content-Length', len(body))]
+    if keep_alive:
+        headers.append(('Connection', 'Keep-Alive'))
+        headers.append(('Keep-Alive', 'timeout=5, max=1000'))
     return Response(200, 'OK', headers, body)
 
 
@@ -39,12 +42,12 @@ class FullHTTPServer(MyHTTPServer):
         else:
             raise HTTPError(400, "Invalid token")
 
-    def handle_request(self, req: Request) -> Response:
+    def handle_request(self, req: Request, address) -> Response:
         if req.path == '/registry' and req.method == 'POST':
             return self.handle_post_registry(req)
 
         if req.path == '/login' and req.method == 'POST':
-            return self.handle_post_login(req)
+            return self.handle_post_login(req, address)
 
         if req.path == '/logout' and req.method == 'POST':
             return self.handle_post_logout(req)
@@ -54,6 +57,10 @@ class FullHTTPServer(MyHTTPServer):
 
         if req.path == '/test' and req.method == 'GET':
             return self.handle_inf_test(req)
+
+        if req.path.startswith('/message/') and req.method == 'POST':
+            return self.handle_message(req, address)
+
         if req.path.startswith('/users/'):
             user_id = req.path[len('/users/'):]
             if user_id.isdigit():
@@ -81,7 +88,7 @@ class FullHTTPServer(MyHTTPServer):
         else:
             return Response(405, "This login is already in use")
 
-    def handle_post_login(self, req):
+    def handle_post_login(self, req, address):
         data = json.loads(req.body)
         if self._users.get(data["login"]) is None:
             return Response(404, 'Not found')
@@ -94,14 +101,16 @@ class FullHTTPServer(MyHTTPServer):
             self._users[data["login"]]["auth_token"] = auth_token
             self._tokens_conn[auth_token] = TokenConn(auth_token, self._pool, data["login"])
             self._tokens_conn[auth_token].connect_to_db()
+            self._users[data["login"]]['address'] = address
         else:
             auth_token = self._tokens_conn[self._users[data["login"]]["auth_token"]].token
         # print(f'main: {id(self._pool)}, in_token: {id(self._tokens_conn[self._users[data["login"]]["auth_token"]]._pool)}') --they are same
-        return handle_response(req=req, resp_body={"token": auth_token}, encoding='utf-8')
+        return handle_response(req=req, resp_body={"token": auth_token}, encoding='utf-8', keep_alive=True)
 
     '''
         just for testing threads, it works perfectly
     '''
+
     def handle_inf_test(self, req):
         for k in range(10000000000000):
             i = 0
@@ -122,10 +131,47 @@ class FullHTTPServer(MyHTTPServer):
         return handle_response(req=req, resp_body=self._users, encoding='utf-8')
 
     def handle_get_user(self, req: Request, user_id) -> Response:
-        user = self._users.get(int(user_id))
+        user = self._users.get(user_id)
         if not user:
             raise HTTPError(404, 'Not found')
         return handle_response(req=req, resp_body=user, encoding='utf-8')
+
+    '''
+    Request:
+        query: /message/<recievers_group>
+        recievers_group = {'all' - все юзеры, т.е глобальный чат,
+                           '<chat_name>' - все пользователи данного чата
+                           }
+        P.S:  имена чатов сохраню в базу, вместе с логинами пользователей чата
+            также параметр chat_name - может просто равняться 
+        body: 
+            {
+                text : str - текст сообщения
+                auth_token : str - авторизационный токен пользователя
+            }
+    Response:
+        200 OK - для пославшего сообщение в случае успеха отправки. 
+        404 Not found - неверный токен
+        404 Recievers Not Found - не нашлась группа получателей
+        500 Internal Error - при внутренних ошибках сервака. 
+    '''
+    def handle_message(self, req: Request, address) -> Response:
+        recievers_group = req.path[len('/message/'):]
+        data = json.loads(req.body)
+        if self._tokens_conn.get(data["auth_token"]) is None:
+            return Response(404, 'Not found')
+        self.send_message(recievers_group, data, address)
+        return Response(200, "OK")
+
+    def send_message(self, recievers_group, data, address):
+        if recievers_group=='all':
+            for reciever in self._users.values():
+                if reciever.get('address') and reciever.get('address') == address:
+                    # не хотим отправлять сообщение самому себе
+                    continue
+                else:
+                    if reciever.get('address'):
+                        self._serv_sock.sendto(data["text"].encode('utf-8'), reciever["address"])
 
 
 if __name__ == '__main__':
