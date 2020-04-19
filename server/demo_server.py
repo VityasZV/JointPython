@@ -85,8 +85,7 @@ class MyHTTPServer:
         self._port = port
         self._server_name = server_name
         self._tokens_conn = defaultdict(TokenConn)
-        self._pool = psycopg2.pool.SimpleConnectionPool(1, 50, user='admin', password='', host=self._host,
-                                                        port=5432, database='chat')
+        self._pool = psycopg2.pool.SimpleConnectionPool(1, 50, user='admin', password='', host=self._host, port=5432, database='chat')
         if self._pool:
             logging.info("connection pool created successfully")
         self._users_conn = self._pool.getconn()
