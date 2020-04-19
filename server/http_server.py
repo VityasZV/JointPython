@@ -1,7 +1,8 @@
 import hashlib
 import os
 
-from server.demo_server import MyHTTPServer, TokenConn
+from http_classes.base_classes import TokenConn
+from server.demo_server import MyHTTPServer
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE
 
 import json

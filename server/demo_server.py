@@ -1,4 +1,5 @@
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE
+from http_classes.base_classes import TokenConn, ChatGroups, Reciever
 
 from email.parser import Parser
 import psycopg2
@@ -13,57 +14,6 @@ __all__ = ["MyHTTPServer"]
 
 logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
                     level=logging.DEBUG)
-
-
-class TokenConn:
-
-    def __init__(self, token=None, pool=None, login=None):
-        self._cursor = None
-        self.token = token
-        self.conn = None
-        self._pool = pool
-        self.login = login
-
-    def __del__(self):
-        if self._cursor:
-            self._cursor.close()
-        if self._pool and self.conn and not self._pool.closed:
-            self._pool.putconn(self.conn)
-
-    def connect_to_db(self):
-        self.conn = self._pool.getconn()
-
-    @property
-    def cursor(self):
-        return self._cursor
-
-    @cursor.getter
-    def cursor(self):
-        return self._cursor
-
-    @cursor.deleter
-    def cursor(self):
-        if self._cursor:
-            self._cursor.close()
-
-    @cursor.setter
-    def cursor(self):
-        pass
-
-    def set_cursor(self):
-        self._cursor = self.conn.cursor()
-
-    def delete_token_from_user(self, users):
-        users[self.login]["auth_token"] = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._cursor:
-            self._cursor.close()
-        if exc_type:
-            raise exc_val
 
 
 def init_users(conn) -> dict:
@@ -86,12 +36,14 @@ class MyHTTPServer:
         self._port = port
         self._server_name = server_name
         self._tokens_conn = defaultdict(TokenConn)
-        self._pool = psycopg2.pool.SimpleConnectionPool(1, 50, user='admin', password='', host=self._host,
-                                                        port=5432, database='chat')
+        self._pool = psycopg2.pool.ThreadedConnectionPool(1, 50, user='admin', password='', host=self._host,
+                                                          port=5432, database='chat')
         if self._pool:
             logging.info("connection pool created successfully")
         self._users_conn = self._pool.getconn()
         self._users = init_users(self._users_conn)
+        self._chat_groups = ChatGroups(self._pool)
+        self._chat_groups['all'] = {Reciever(login) for login in self._users.keys()}
         self._serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, proto=0)
         logging.info("server initialized")
 
