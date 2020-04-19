@@ -6,10 +6,6 @@ from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS,
 
 import json
 import logging
-import psycopg2
-from psycopg2 import pool
-import asyncio
-from decimal import Decimal
 
 __all__ = ["FullHTTPServer"]
 
@@ -17,7 +13,7 @@ logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(a
                     level=logging.DEBUG)
 
 
-async def handle_response(req: Request, resp_body, encoding: str, default=None) -> Response:
+def handle_response(req: Request, resp_body, encoding: str, default=None) -> Response:
     accept = req.headers.get('Accept')
     if 'application/json' in accept:
         contentType = f'application/json; charset={encoding}'
@@ -34,7 +30,7 @@ async def handle_response(req: Request, resp_body, encoding: str, default=None) 
 
 class FullHTTPServer(MyHTTPServer):
 
-    async def handle_prepare(self, req: Request):
+    def handle_prepare(self, req: Request):
         accept = req.headers.get('Accept')
         data = json.loads(req.body)
         auth_token = data["auth_token"]
@@ -43,27 +39,29 @@ class FullHTTPServer(MyHTTPServer):
         else:
             raise HTTPError(400, "Invalid token")
 
-    async def handle_request(self, req: Request) -> Response:
+    def handle_request(self, req: Request) -> Response:
         if req.path == '/registry' and req.method == 'POST':
-            return await self.handle_post_registry(req)
+            return self.handle_post_registry(req)
 
         if req.path == '/login' and req.method == 'POST':
-            return await self.handle_post_login(req)
+            return self.handle_post_login(req)
 
         if req.path == '/logout' and req.method == 'POST':
-            return await self.handle_post_logout(req)
+            return self.handle_post_logout(req)
 
         if req.path == '/users' and req.method == 'GET':
-            return await self.handle_get_users(req)
+            return self.handle_get_users(req)
 
+        if req.path == '/test' and req.method == 'GET':
+            return self.handle_inf_test(req)
         if req.path.startswith('/users/'):
             user_id = req.path[len('/users/'):]
             if user_id.isdigit():
-                return await self.handle_get_user(req, user_id)
+                return self.handle_get_user(req, user_id)
 
         raise HTTPError(404, 'Not found')
 
-    async def handle_post_registry(self, req: Request) -> Response:
+    def handle_post_registry(self, req: Request) -> Response:
         data = json.loads(req.body.decode('utf-8'))
         if self._users.get(data["login"]) is None:
             self._users[data["login"]] = {
@@ -83,7 +81,7 @@ class FullHTTPServer(MyHTTPServer):
         else:
             return Response(405, "This login is already in use")
 
-    async def handle_post_login(self, req):
+    def handle_post_login(self, req):
         data = json.loads(req.body)
         if self._users.get(data["login"]) is None:
             return Response(404, 'Not found')
@@ -95,13 +93,23 @@ class FullHTTPServer(MyHTTPServer):
             auth_token = hashlib.sha256(os.urandom(1024)).hexdigest()
             self._users[data["login"]]["auth_token"] = auth_token
             self._tokens_conn[auth_token] = TokenConn(auth_token, self._pool, data["login"])
-            await self._tokens_conn[auth_token].connect_to_db()
+            self._tokens_conn[auth_token].connect_to_db()
         else:
             auth_token = self._tokens_conn[self._users[data["login"]]["auth_token"]].token
         # print(f'main: {id(self._pool)}, in_token: {id(self._tokens_conn[self._users[data["login"]]["auth_token"]]._pool)}') --they are same
-        return await handle_response(req=req, resp_body={"token": auth_token}, encoding='utf-8')
+        return handle_response(req=req, resp_body={"token": auth_token}, encoding='utf-8')
 
-    async def handle_post_logout(self, req):
+    '''
+        just for testing threads, it works perfectly
+    '''
+    def handle_inf_test(self, req):
+        for k in range(10000000000000):
+            i = 0
+            while i < 100000000000000000000000:
+                i += 1
+        return Response(200, "OK")
+
+    def handle_post_logout(self, req):
         data = json.loads(req.body)
         if self._tokens_conn.get(data["auth_token"]) is None:
             return Response(404, 'Not found')
@@ -110,14 +118,14 @@ class FullHTTPServer(MyHTTPServer):
         self._tokens_conn.pop(data["auth_token"])
         return Response(200, "OK")
 
-    async def handle_get_users(self, req: Request) -> Response:
-        return await handle_response(req=req, resp_body=self._users, encoding='utf-8')
+    def handle_get_users(self, req: Request) -> Response:
+        return handle_response(req=req, resp_body=self._users, encoding='utf-8')
 
-    async def handle_get_user(self, req: Request, user_id) -> Response:
+    def handle_get_user(self, req: Request, user_id) -> Response:
         user = self._users.get(int(user_id))
         if not user:
             raise HTTPError(404, 'Not found')
-        return await handle_response(req=req, resp_body=user, encoding='utf-8')
+        return handle_response(req=req, resp_body=user, encoding='utf-8')
 
 
 if __name__ == '__main__':
@@ -126,7 +134,7 @@ if __name__ == '__main__':
     name = 'server'
     server = FullHTTPServer(host, port, name)
     try:
-        asyncio.run(server.serve_forever())
+        server.serve_forever()
     except KeyboardInterrupt:
         logging.info('server shut down')
         pass
