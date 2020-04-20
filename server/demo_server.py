@@ -123,8 +123,8 @@ class MyHTTPServer:
     def serve_client(self, conn, address):
         try:
             logging.info(f"connected client: {address}")
-            req =  self.parse_request(conn)
-            resp =  self.handle_request(req)
+            req = self.parse_request(conn)
+            resp = self.handle_request(req)
             self.send_response(conn, resp)
         except ConnectionResetError:
             conn = None
@@ -139,7 +139,7 @@ class MyHTTPServer:
     def parse_request(self, conn):
         rfile = conn.makefile('rb')
         method, target, ver =  self.parse_request_line(rfile)
-        headers =  self.parse_headers(rfile)
+        headers = self.parse_headers(rfile)
         host = headers.get('Host')
         if not host:
             raise HTTPError(400, 'Bad request',
@@ -160,7 +160,6 @@ class MyHTTPServer:
         if len(words) != 3:
             raise HTTPError(400, 'Bad request',
                             'Malformed request line')
-
         method, target, ver = words
         if ver != 'HTTP/1.1':
             raise HTTPError(505, 'HTTP Version Not Supported')
