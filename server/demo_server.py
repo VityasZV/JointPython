@@ -89,7 +89,7 @@ class MyHTTPServer:
             # не стоит рвать соедиение сразу после обработки запроса, учитывая что это чат
             for user in self._users.values():
                 if user.get('address') and user.get('address') == address:
-                    pass  # TODO: here should be return statement - will fix after testing with client
+                    return  # TODO: here should be return statement - will fix after testing with client
             # for other handlers connection should be closed
             print("close connection")
             conn.close()

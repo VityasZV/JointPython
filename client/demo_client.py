@@ -74,7 +74,7 @@ class Client:
         buffer = self.sock_fd.makefile('rb')
         ver, status, reason = self.parse_response_line(buffer)
         headers = self.parse_headers(buffer)
-        print (headers)
+        print(headers)
         size = headers.get('Content-Length')
         if not size:
             body = None
