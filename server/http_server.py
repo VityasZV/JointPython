@@ -122,11 +122,11 @@ class FullHTTPServer(MyHTTPServer):
     def handle_post_logout(self, req):
         data = json.loads(req.body)
         if self._tokens_conn.get(data["auth_token"]) is None:
-            return Response(404, 'Not found')
+            raise HTTPError(404, 'Not found')
         self._tokens_conn[data["auth_token"]].delete_token_from_user(self._users)
         # closing connection of a user
         self._tokens_conn.pop(data["auth_token"])
-        return Response(200, "OK")
+        return handle_response(req=req, resp_body='OK', encoding='utf-8', keep_alive=True)
 
     def handle_get_users(self, req: Request) -> Response:
         return handle_response(req=req, resp_body=self._users, encoding='utf-8')
