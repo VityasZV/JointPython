@@ -45,7 +45,6 @@ class TokenConn:
 
     def delete_token_from_user(self, users):
         users[self.login]["auth_token"] = None
-
     def __enter__(self):
         return self
 

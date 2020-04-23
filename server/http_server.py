@@ -1,9 +1,10 @@
 import hashlib
 import os
+import socket
 
 from http_classes.base_classes import TokenConn
 from server.demo_server import MyHTTPServer
-from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE
+from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE, ConnStatus
 
 import json
 import logging
@@ -14,7 +15,8 @@ logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(a
                     level=logging.DEBUG)
 
 
-def handle_response(req: Request, resp_body, encoding: str, default=None, keep_alive=False) -> Response:
+def handle_response(req: Request, resp_body, resp_status, resp_reason, encoding: str, default=None,
+                    keep_alive=False) -> Response:
     accept = req.headers.get('Accept')
     if 'application/json' in accept:
         contentType = f'application/json; charset={encoding}'
@@ -29,7 +31,7 @@ def handle_response(req: Request, resp_body, encoding: str, default=None, keep_a
     if keep_alive:
         headers.append(('Connection', 'Keep-Alive'))
         headers.append(('Keep-Alive', 'timeout=5, max=1000'))
-    return Response(200, 'OK', headers, body)
+    return Response(resp_status, resp_reason, headers, body)
 
 
 class FullHTTPServer(MyHTTPServer):
@@ -43,14 +45,15 @@ class FullHTTPServer(MyHTTPServer):
         else:
             raise HTTPError(400, "Invalid token")
 
-    def handle_request(self, req: Request, address) -> Response:
+    def handle_request(self, req: Request, connection: socket) -> Response:
         if req.path == '/registry' and req.method == 'POST':
             return self.handle_post_registry(req)
 
         if req.path == '/login' and req.method == 'POST':
-            return self.handle_post_login(req, address)
+            return self.handle_post_login(req, connection)
 
         if req.path == '/logout' and req.method == 'POST':
+            self._connections[connection] = ConnStatus.closing
             return self.handle_post_logout(req)
 
         if req.path == '/users' and req.method == 'GET':
@@ -60,7 +63,7 @@ class FullHTTPServer(MyHTTPServer):
             return self.handle_inf_test(req)
 
         if req.path.startswith('/message/') and req.method == 'POST':
-            return self.handle_message(req, address)
+            return self.handle_message(req, connection)
 
         if req.path.startswith('/users/'):
             user_id = req.path[len('/users/'):]
@@ -84,29 +87,31 @@ class FullHTTPServer(MyHTTPServer):
             logging.info(f'insert {count} values into users')
             users_cursor.close()
             if count == 0:
-                return Response(500, "user created locally but not inserted into database")
-            return Response(204, 'Created')
+                raise HTTPError(500, "user created locally but not inserted into database")
+            return handle_response(req=req, resp_body='user created', resp_status=204,
+                                   resp_reason='Created', encoding='utf-8')
         else:
-            return Response(405, "This login is already in use")
+            raise HTTPError(405, "This login is already in use")
 
-    def handle_post_login(self, req, address):
+    def handle_post_login(self, req, connection: socket):
         data = json.loads(req.body)
         if self._users.get(data["login"]) is None:
-            return Response(404, 'Not found')
+            raise HTTPError(404, 'Not found')
 
         if self._users[data["login"]]["password"] != data["password"]:
-            return Response(401, "Unauthorized - wrong password")
+            raise HTTPError(404, "Unauthorized - wrong password")
 
         if self._users[data["login"]].get("auth_token") is None:
             auth_token = hashlib.sha256(os.urandom(1024)).hexdigest()
             self._users[data["login"]]["auth_token"] = auth_token
             self._tokens_conn[auth_token] = TokenConn(auth_token, self._pool, data["login"])
             self._tokens_conn[auth_token].connect_to_db()
-            self._users[data["login"]]['address'] = address
+            self._users[data["login"]]['connection'] = connection
         else:
             auth_token = self._tokens_conn[self._users[data["login"]]["auth_token"]].token
         # print(f'main: {id(self._pool)}, in_token: {id(self._tokens_conn[self._users[data["login"]]["auth_token"]]._pool)}') --they are same
-        return handle_response(req=req, resp_body={"token": auth_token}, encoding='utf-8', keep_alive=True)
+        return handle_response(req=req, resp_body={"token": auth_token}, resp_status=200,
+                               resp_reason='OK', encoding='utf-8', keep_alive=True)
 
     '''
         just for testing threads, it works perfectly
@@ -117,25 +122,35 @@ class FullHTTPServer(MyHTTPServer):
             i = 0
             while i < 100000000000000000000000:
                 i += 1
-        return Response(200, "OK")
+        return handle_response(req=req, resp_body="OK",
+                               resp_status=200, resp_reason='OK', encoding='utf-8')
 
     def handle_post_logout(self, req):
         data = json.loads(req.body)
         if self._tokens_conn.get(data["auth_token"]) is None:
-            return Response(404, 'Not found')
+            raise HTTPError(404, 'Not found')
+
         self._tokens_conn[data["auth_token"]].delete_token_from_user(self._users)
-        # closing connection of a user
+        print(self._tokens_conn[data["auth_token"]].login)
+        del self._users[self._tokens_conn[data["auth_token"]].login]['connection']
+        # closing connection of a user to database
         self._tokens_conn.pop(data["auth_token"])
-        return Response(200, "OK")
+        return handle_response(req=req, resp_body='OK', resp_status=200, resp_reason='OK',
+                               encoding='utf-8', keep_alive=True)
 
     def handle_get_users(self, req: Request) -> Response:
-        return handle_response(req=req, resp_body=self._users, encoding='utf-8')
+        users_without_conn = self._users
+        for user in users_without_conn.values():
+            if user.get('connection'):
+                del user['connection']
+        return handle_response(req=req, resp_body=users_without_conn,
+                               resp_status=200, resp_reason='OK', encoding='utf-8')
 
     def handle_get_user(self, req: Request, user_id) -> Response:
         user = self._users.get(user_id)
         if not user:
             raise HTTPError(404, 'Not found')
-        return handle_response(req=req, resp_body=user, encoding='utf-8')
+        return handle_response(req=req, resp_body=user, resp_status=200, resp_reason='OK', encoding='utf-8')
 
     '''
     Request:
@@ -156,23 +171,26 @@ class FullHTTPServer(MyHTTPServer):
         404 Recievers Not Found - не нашлась группа получателей
         500 Internal Error - при внутренних ошибках сервака. 
     '''
-    def handle_message(self, req: Request, address) -> Response:
+
+    def handle_message(self, req: Request, connection: socket) -> Response:
         recievers_group = req.path[len('/message/'):]
         data = json.loads(req.body)
         if self._tokens_conn.get(data["auth_token"]) is None:
-            return Response(404, 'Not found')
-        self.send_message(recievers_group, data, address)
-        return Response(200, "OK")
+            raise HTTPError(404, 'Not found')
+        self.send_message(recievers_group, data, connection)
+        return handle_response(req=req, resp_body="OK", resp_status=200, resp_reason='OK', encoding='utf-8')
 
-    def send_message(self, recievers_group, data, address):
-        if recievers_group=='all':
+    def send_message(self, recievers_group, data, connection):
+        if recievers_group == 'all':
             for reciever in self._users.values():
-                if reciever.get('address') and reciever.get('address') == address:
+                if reciever.get('connection') and reciever.get('connection') == connection:
                     # не хотим отправлять сообщение самому себе
+                    # test
+                    self._serv_sock.sendto(data["text"].encode('utf-8'), reciever["connection"])
                     continue
                 else:
-                    if reciever.get('address'):
-                        self._serv_sock.sendto(data["text"].encode('utf-8'), reciever["address"])
+                    if reciever.get('connection'):
+                        self._serv_sock.sendto(data["text"].encode('utf-8'), reciever["connection"])
 
 
 if __name__ == '__main__':
