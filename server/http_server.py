@@ -88,7 +88,7 @@ class FullHTTPServer(MyHTTPServer):
             users_cursor.close()
             if count == 0:
                 raise HTTPError(500, "user created locally but not inserted into database")
-            return handle_response(req=req, resp_body='user created', resp_status=204,
+            return handle_response(req=req, resp_body={"status": "user created"}, resp_status=204,
                                    resp_reason='Created', encoding='utf-8')
         else:
             raise HTTPError(405, "This login is already in use")
@@ -110,7 +110,7 @@ class FullHTTPServer(MyHTTPServer):
         else:
             auth_token = self._tokens_conn[self._users[data["login"]]["auth_token"]].token
         # print(f'main: {id(self._pool)}, in_token: {id(self._tokens_conn[self._users[data["login"]]["auth_token"]]._pool)}') --they are same
-        return handle_response(req=req, resp_body={"token": auth_token}, resp_status=200,
+        return handle_response(req=req, resp_body={"status": "logged in", "token": auth_token}, resp_status=200,
                                resp_reason='OK', encoding='utf-8', keep_alive=True)
 
     '''
@@ -135,7 +135,7 @@ class FullHTTPServer(MyHTTPServer):
         del self._users[self._tokens_conn[data["auth_token"]].login]['connection']
         # closing connection of a user to database
         self._tokens_conn.pop(data["auth_token"])
-        return handle_response(req=req, resp_body='OK', resp_status=200, resp_reason='OK',
+        return handle_response(req=req, resp_body={"status": "logged out"}, resp_status=200, resp_reason='OK',
                                encoding='utf-8', keep_alive=True)
 
     def handle_get_users(self, req: Request) -> Response:
@@ -178,7 +178,7 @@ class FullHTTPServer(MyHTTPServer):
         if self._tokens_conn.get(data["auth_token"]) is None:
             raise HTTPError(404, 'Not found')
         self.send_message(recievers_group, data, connection)
-        return handle_response(req=req, resp_body="OK", resp_status=200, resp_reason='OK', encoding='utf-8')
+        return handle_response(req=req, resp_body={"status": "sent"}, resp_status=200, resp_reason='OK', encoding='utf-8')
 
     def send_message(self, recievers_group, data, connection):
         if recievers_group == 'all':
@@ -186,11 +186,17 @@ class FullHTTPServer(MyHTTPServer):
                 if reciever.get('connection') and reciever.get('connection') == connection:
                     # не хотим отправлять сообщение самому себе
                     # test
-                    self._serv_sock.sendto(data["text"].encode('utf-8'), reciever["connection"])
+                    #reciever["connection"].send(data["text"].encode('utf-8'))
                     continue
                 else:
                     if reciever.get('connection'):
-                        self._serv_sock.sendto(data["text"].encode('utf-8'), reciever["connection"])
+                        contentType = f'application/json; charset=utf-8'
+                        body = json.dumps({"status": "message", "text": data["text"]})
+                        body = body.encode(f'utf-8')
+                        headers = [('Content-Type', contentType), ('Content-Length', len(body)),
+                                   ('Connection', 'Keep-Alive'), ('Keep-Alive', 'timeout=5, max=1000')]
+                        resp = Response(200, "OK", headers, body)
+                        self.send_response(reciever["connection"], resp)
 
 
 if __name__ == '__main__':
