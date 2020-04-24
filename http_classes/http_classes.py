@@ -1,3 +1,4 @@
+from enum import Enum
 from functools import lru_cache
 from urllib.parse import parse_qs, urlparse
 
@@ -51,3 +52,8 @@ class HTTPError(Exception):
         self.status = status
         self.reason = reason
         self.body = body
+
+
+class ConnStatus(Enum):
+    active = 1
+    closing = 2
