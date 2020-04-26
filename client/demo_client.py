@@ -5,6 +5,8 @@ import logging
 import socket
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE
 
+__all__ = ['Client']
+
 
 class Client:
     def __init__(self):
@@ -17,7 +19,6 @@ class Client:
         self.receiver = None
         self.rcv_success = threading.Event()
         self.rcv_success.clear()
-
 
     def connect_to_server(self, host, port):
         try:
