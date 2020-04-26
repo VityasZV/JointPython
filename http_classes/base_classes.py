@@ -1,11 +1,13 @@
+import hashlib
+import os
+from socket import socket
 from _collections import defaultdict
 import psycopg2
 from psycopg2 import pool
 import logging
-
-__all__ = ['TokenConn', 'Reciever', 'ChatGroups']
-
 from http_classes.http_classes import HTTPError
+
+__all__ = ['TokenConn', 'Reciever', 'ChatGroups', 'Cursor', 'TokensConn', 'Users', 'User']
 
 logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
                     level=logging.DEBUG)
@@ -26,6 +28,7 @@ class Cursor:
         return self.cursor
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        print(exc_val)
         self.cursor.close()
 
 
@@ -81,10 +84,10 @@ class TokenConn:
 
 class TokensConn:
     def __init__(self):
-        self.tokens_conn = dict()
+        self.tokens_conn = dict()  # mapping (auth_token: str)  to (TokenConn)
 
-    def __setitem__(self, key, value):
-        pass
+    def __setitem__(self, token: str, value: TokenConn):
+        self.tokens_conn[token] = value
 
     def __getitem__(self, item: str):
         if self.tokens_conn.get(item):
@@ -99,9 +102,15 @@ class TokensConn:
         if self[token] is None:
             raise HTTPError(404, 'Not found')
         self[token].delete_token_from_user(users)
-        print(self.tokens_conn[token].login)
-        users[self.tokens_conn[token].login].connection = None
+        print(self.user(token, users).login)
+        self.user(token, users).connection = None
         del self[token]
+
+    def user(self, token: str, users: Users):
+        try:
+            return users[self[token].login]
+        except Exception:
+            return None
 
 
 class Reciever:
@@ -154,7 +163,7 @@ class ChatGroups:
         self._cursor = self._conn.cursor()
 
 
-class Client:
+class User:
     def __init__(self, login: str, name: str, password: str):
         self.login = login
         self.name = name
@@ -164,6 +173,22 @@ class Client:
 
     def logout(self):
         self.connection = None
+
+    def generate_auth_token(self, tokens_conn: TokensConn, conn_pool: psycopg2.pool.ThreadedConnectionPool,
+                            conn: socket) -> str:
+        if self.auth_token is None:
+            self.auth_token = hashlib.sha256(os.urandom(1024)).hexdigest()
+            tokens_conn[self.auth_token] = TokenConn(self.auth_token, conn_pool, self.login)
+            tokens_conn[self.auth_token].connect_to_db()
+            self.connection = conn
+        return self.auth_token
+
+    def json_prepare(self):
+        return {
+            "login"         : self.login,
+            "name"          : self.name,
+            "auth_token"    : self.auth_token
+        }
 
 
 class Users:
@@ -176,15 +201,15 @@ class Users:
         records = cursor.fetchall()
         cursor.close()
         for (login, name, password) in records:
-            self.users[login] = Client(login, name, password)
+            self.users[login] = User(login, name, password)
 
-    def __getitem__(self, login) -> Client or None:
+    def __getitem__(self, login) -> User or None:
         if self.users.get(login):
             return self.users[login]
         else:
             return None
 
-    def __setitem__(self, login, user: Client):
+    def __setitem__(self, login, user: User):
         if self[login] is None:
             self.users[login] = user
             with Cursor(self.conn) as cursor:
@@ -201,3 +226,15 @@ class Users:
     def __delitem__(self, chat_name):
         # хендлера на удаление пользователя нет, если нужно удаляется руками через базу.
         pass
+
+    def keys(self):
+        return self.users.keys()
+
+    def values(self):
+        return self.users.values()
+
+    def token_for_user(self, login: str, tokens_conn: TokensConn, conn_pool: psycopg2.pool.ThreadedConnectionPool,
+                       conn: socket):
+        token = self[login].generate_auth_token(tokens_conn=tokens_conn, conn_pool=conn_pool, conn=conn)
+        return token
+
