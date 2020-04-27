@@ -49,6 +49,9 @@ class FullHTTPServer(MyHTTPServer):
         if req.path == '/registry' and req.method == 'POST':
             return self.handle_post_registry(req)
 
+        if req.path == '/remove' and req.method == 'POST':
+            return self.handle_post_remove(req)
+
         if req.path == '/login' and req.method == 'POST':
             return self.handle_post_login(req, connection)
 
@@ -78,6 +81,13 @@ class FullHTTPServer(MyHTTPServer):
         self._users[login] = User(login, name, password)
         return handle_response(req=req, resp_body={"status": "user created"}, resp_status=204,
                                resp_reason='Created', encoding='utf-8')
+
+    def handle_post_remove(self, req: Request) -> Response:
+        data = json.loads(req.body.decode('utf-8'))
+        login = data["login"]
+        del self._users[login]
+        return handle_response(req=req, resp_body={"status": "user removed from database"}, resp_status=204,
+                                   resp_reason='Removed', encoding='utf-8')
 
     def handle_post_login(self, req, connection: socket.socket):
         data = json.loads(req.body)
@@ -133,17 +143,17 @@ class FullHTTPServer(MyHTTPServer):
                            '<chat_name>' - все пользователи данного чата
                            }
         P.S:  имена чатов сохраню в базу, вместе с логинами пользователей чата
-            также параметр chat_name - может просто равняться 
-        body: 
+            также параметр chat_name - может просто равняться
+        body:
             {
                 text : str - текст сообщения
                 auth_token : str - авторизационный токен пользователя
             }
     Response:
-        200 OK - для пославшего сообщение в случае успеха отправки. 
+        200 OK - для пославшего сообщение в случае успеха отправки.
         404 Not found - неверный токен
         404 Recievers Not Found - не нашлась группа получателей
-        500 Internal Error - при внутренних ошибках сервака. 
+        500 Internal Error - при внутренних ошибках сервака.
     '''
 
     def handle_message(self, req: Request, connection: socket.socket) -> Response:
