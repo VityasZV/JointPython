@@ -1,6 +1,5 @@
 from unittest import TestCase
 import requests
-import json
 import server.http_server as srv
 
 class TestFullHTTPServer(TestCase):
@@ -35,17 +34,17 @@ class TestFullHTTPServer(TestCase):
 
     def test_logout(self):
         requests.post(self.url + '/registry', json=self.user1_json, headers=self.headers)
-        status = eval(requests.post(self.url + '/login', json=self.user1_json, headers=self.headers).text)
+        status = requests.post(self.url + '/login', json=self.user1_json, headers=self.headers).json()
         self.assertEqual(status['status'], 'logged in')
         reg1 = requests.post(self.url + '/logout', json={'auth_token': status['token']}, headers=self.headers)
-        self.assertEqual(eval(reg1.text)['status'], 'logged out')
+        self.assertEqual(reg1.json()['status'], 'logged out')
 
     def test_double_logout(self):
         requests.post(self.url + '/registry', json=self.user1_json, headers=self.headers)
-        status = eval(requests.post(self.url + '/login', json=self.user1_json, headers=self.headers).text)
+        status = requests.post(self.url + '/login', json=self.user1_json, headers=self.headers).json()
         self.assertEqual(status['status'], 'logged in')
         reg1 = requests.post(self.url + '/logout', json={'auth_token': status['token']}, headers=self.headers)
-        self.assertEqual(eval(reg1.text)['status'], 'logged out')
+        self.assertEqual(reg1.json()['status'], 'logged out')
         reg2 = requests.post(self.url + '/logout', json={'auth_token': status['token']}, headers=self.headers)
         self.assertEqual(reg2.text, 'Not found')
 
@@ -55,6 +54,6 @@ class TestFullHTTPServer(TestCase):
         self.assertEqual(reg1.text, 'Not found')
 
     def tearDown(self) -> None:
-        status = eval(requests.post(self.url + '/login', json=self.user1_json, headers=self.headers).text)
+        status = requests.post(self.url + '/login', json=self.user1_json, headers=self.headers).json()
         requests.post(self.url + '/logout', json={'auth_token': status['token']}, headers=self.headers)
         requests.post(self.url + '/remove', json=self.user1_json, headers=self.headers).text
