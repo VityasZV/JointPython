@@ -1,5 +1,6 @@
 from unittest import TestCase
 import requests
+import json
 import server.http_server as srv
 
 class TestFullHTTPServer(TestCase):
