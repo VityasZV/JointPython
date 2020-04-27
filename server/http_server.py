@@ -49,6 +49,9 @@ class FullHTTPServer(MyHTTPServer):
         if req.path == '/registry' and req.method == 'POST':
             return self.handle_post_registry(req)
 
+        if req.path == '/remove' and req.method == 'POST':
+            return self.handle_post_remove(req)
+
         if req.path == '/login' and req.method == 'POST':
             return self.handle_post_login(req, connection)
 
@@ -92,6 +95,23 @@ class FullHTTPServer(MyHTTPServer):
                                    resp_reason='Created', encoding='utf-8')
         else:
             raise HTTPError(405, "This login is already in use")
+
+    def handle_post_remove(self, req: Request) -> Response:
+        data = json.loads(req.body.decode('utf-8'))
+        if self._users.get(data["login"]):
+            users_cursor = self._users_conn.cursor()
+            users_cursor.execute(f"DELETE FROM users "
+                                 f"WHERE login = '{data['login']}';")
+            self._users_conn.commit()
+            count = users_cursor.rowcount
+            logging.info(f'deleted {count} values into users')
+            users_cursor.close()
+            if count == 0:
+                raise HTTPError(500, "user not removed")
+            return handle_response(req=req, resp_body={"status": "user removed from database"}, resp_status=204,
+                                   resp_reason='Removed', encoding='utf-8')
+        else:
+            raise HTTPError(404, "User does not exist")
 
     def handle_post_login(self, req, connection: socket):
         data = json.loads(req.body)
