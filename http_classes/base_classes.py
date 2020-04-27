@@ -223,6 +223,7 @@ class Users:
         else:
             raise HTTPError(405, "This login is already in use")
 
+<<<<<<< HEAD
     def __delitem__(self, login):
         if self[login]:
             with Cursor(self.conn) as cursor:
@@ -235,6 +236,11 @@ class Users:
                     raise HTTPError(500, "failed to remove the user")
         else:
             raise HTTPError(405, "The user does not exist")
+=======
+    def __delitem__(self, chat_name):
+        # хендлера на удаление пользователя нет, если нужно удаляется руками через базу.
+        pass
+>>>>>>> 5bdadcb6fbe24c2d16272f9f8b0815382fd59f49
 
     def keys(self):
         return self.users.keys()
@@ -246,3 +252,7 @@ class Users:
                        conn: socket):
         token = self[login].generate_auth_token(tokens_conn=tokens_conn, conn_pool=conn_pool, conn=conn)
         return token
+<<<<<<< HEAD
+=======
+
+>>>>>>> 5bdadcb6fbe24c2d16272f9f8b0815382fd59f49
