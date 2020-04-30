@@ -14,10 +14,10 @@
 ![Registration](https://github.com/enotnadoske/JointPython/tree/master/pics/RegistrationWindow.png)
 
 Авторизация:
-![Registration](https://github.com/enotnadoske/JointPython/tree/master/pics/LoginWindow.png)
+![Authorization](https://github.com/enotnadoske/JointPython/tree/master/pics/LoginWindow.png)
 
 Чат:
-![Registration](https://github.com/enotnadoske/JointPython/tree/master/pics/ChatWindow.png)
+![Chat](https://github.com/enotnadoske/JointPython/tree/master/pics/ChatWindow.png)
 
 Реализовано на данный момент:
 
