@@ -1,5 +1,5 @@
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE, ConnStatus
-from http_classes.base_classes import TokenConn, ChatGroups, Reciever
+from http_classes.base_classes import TokenConn, ChatGroups, Reciever, TokensConn, Users
 
 from email.parser import Parser
 import psycopg2
@@ -16,33 +16,18 @@ logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(a
                     level=logging.DEBUG)
 
 
-def init_users(conn) -> dict:
-    users = {}
-    cursor = conn.cursor()
-    cursor.execute(f'SELECT * FROM users')
-    records = cursor.fetchall()
-    cursor.close()
-    for (login, name, password) in records:
-        users[login] = {
-            'name': name,
-            'password': password
-        }
-    return users
-
-
 class MyHTTPServer:
     def __init__(self, host, port, server_name):
         self._host = host
         self._port = port
         self._server_name = server_name
-        self._tokens_conn = defaultdict(TokenConn)
+        self._tokens_conn = TokensConn()
         self._pool = psycopg2.pool.ThreadedConnectionPool(1, 50, user='admin', password='', host=self._host,
                                                           port=5432, database='chat')
         if self._pool:
             logging.info("connection pool created successfully")
-        self._users_conn = self._pool.getconn()
-        self._users = init_users(self._users_conn)
-        self._connections = {}
+        self._users = Users(self._pool.getconn())
+        self._connections = {}  # TODO make class for connections
         self._chat_groups = ChatGroups(self._pool)
         self._chat_groups['all'] = {Reciever(login) for login in self._users.keys()}
         self._serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, proto=0)
@@ -52,6 +37,7 @@ class MyHTTPServer:
         logging.info("deleting server")
         if self._pool:
             self._pool.closeall()
+        self._serv_sock.close()
 
     def serve_forever(self):
         try:
@@ -112,7 +98,6 @@ class MyHTTPServer:
             conn.close()
             del self._connections[conn]
 
-
     def parse_request(self, conn):
         rfile = conn.makefile('rb')
         method, target, ver = self.parse_request_line(rfile)
@@ -160,7 +145,7 @@ class MyHTTPServer:
         sheaders = b''.join(headers).decode('iso-8859-1')
         return Parser().parsestr(sheaders)
 
-    def handle_request(self, req: Request, connection : socket) -> Response:
+    def handle_request(self, req: Request, connection: socket.socket) -> Response:
         pass
 
     def send_response(self, conn, resp):
