@@ -11,10 +11,13 @@
 Примеры графического интерфеса : 
 
 Регистрация:
+![Registration](https://github.com/enotnadoske/JointPython/tree/master/pics/RegistrationWindow.jpg)
 
 Авторизация:
+![Registration](https://github.com/enotnadoske/JointPython/tree/master/pics/LoginWindow.jpg)
 
 Чат:
+![Registration](https://github.com/enotnadoske/JointPython/tree/master/pics/ChatWindow.jpg)
 
 Реализовано на данный момент:
 
