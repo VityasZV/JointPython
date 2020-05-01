@@ -1,3 +1,4 @@
+import signal
 import sys
 import threading
 from email.parser import Parser
@@ -8,6 +9,9 @@ from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS,
 
 __all__ = ['Client']
 
+
+# logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
+#                    level=logging.DEBUG)
 
 class Client:
     def __init__(self):
@@ -23,6 +27,7 @@ class Client:
         self.read_shut = threading.Event()
 
     def connect_to_server(self, host, port):
+        # a method for connecting to server
         try:
             self.sock_fd = socket.create_connection((host, port))
             self.server_host = host
@@ -42,7 +47,9 @@ class Client:
         return True
 
     def disconnect(self):
-        data = json.dumps("disconnect")
+        # a method for graceful disconnect
+        self.log_out()  # log out before disconnecting if necessary
+        data = json.dumps({"state": "connected"})
         data.encode('utf-8')
         req = self.form_request_line(data, "disconnect")
         if req:
@@ -109,9 +116,11 @@ class Client:
                     read_shut.set()
                     sys.exit()
                 elif data["status"] == "message":
+                    logging.info("got a message")
                     print(data["text"])
                     continue
                 elif data["status"] == "sent":
+                    logging.info("sent a message")
                     pass
             success.set()
 
@@ -167,9 +176,18 @@ class Client:
 
 
 cl = Client()
+
+
+def handler(sig, frame):
+    cl.disconnect()
+    sys.exit()
+
+
+signal.signal(signal.SIGINT, handler)
+
 if cl.connect_to_server('localhost', 8000):
-    try:
-        while True:
+    while True:
+        try:
             if cl.state == "connected":
                 answer = input("Register or Login?[r/l]")
                 if answer == "r":
@@ -184,5 +202,7 @@ if cl.connect_to_server('localhost', 8000):
                     msg = input("Type here:")
                     print(msg)
                     cl.post_message(msg, "all")
-    except KeyboardInterrupt and EOFError:
-        cl.disconnect()
+        except Exception as e:
+            cl.disconnect()
+            raise e
+            break

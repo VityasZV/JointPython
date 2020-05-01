@@ -81,8 +81,7 @@ class FullHTTPServer(MyHTTPServer):
 
     def handle_post_disconnect(self, req, connection):
         data = json.loads(req.body)
-        if data == "disconnect":
-            logging.info("here")
+        if data["state"] == "connected":
             contentType = f'application/json; charset=utf-8'
             body = json.dumps({"status": "disconnect OK"})
             body = body.encode('utf-8')
@@ -90,6 +89,8 @@ class FullHTTPServer(MyHTTPServer):
                        ('Connection', 'Keep-Alive'), ('Keep-Alive', 'timeout=5, max=1000')]
             resp = Response(200, "OK", headers, body)
             self.send_response(connection, resp)
+            connection.close()
+            del self._connections[connection]
             logging.debug("thread closes because the client exited")
             sys.exit()
 
