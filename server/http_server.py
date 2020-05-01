@@ -1,6 +1,7 @@
 import hashlib
 import os
 import socket
+import sys
 
 from http_classes.base_classes import TokenConn, TokensConn, User
 from server.demo_server import MyHTTPServer
@@ -46,6 +47,9 @@ class FullHTTPServer(MyHTTPServer):
             raise HTTPError(400, "Invalid token")
 
     def handle_request(self, req: Request, connection: socket.socket) -> Response:
+        if req.path == '/disconnect' and req.method == 'POST':
+            self.handle_post_disconnect(req, connection)
+
         if req.path == '/registry' and req.method == 'POST':
             return self.handle_post_registry(req)
 
@@ -74,6 +78,22 @@ class FullHTTPServer(MyHTTPServer):
                 return self.handle_get_user(req, user_id)
 
         raise HTTPError(404, 'Not found')
+
+    def handle_post_disconnect(self, req, connection):
+        data = json.loads(req.body)
+        if data == "disconnect":
+            logging.info("here")
+            contentType = f'application/json; charset=utf-8'
+            body = json.dumps({"status": "disconnect OK"})
+            body = body.encode('utf-8')
+            headers = [('Content-Type', contentType), ('Content-Length', len(body)),
+                       ('Connection', 'Keep-Alive'), ('Keep-Alive', 'timeout=5, max=1000')]
+            resp = Response(200, "OK", headers, body)
+            self.send_response(connection, resp)
+            logging.debug("thread closes because the client exited")
+            sys.exit()
+
+
 
     def handle_post_registry(self, req: Request) -> Response:
         data = json.loads(req.body.decode('utf-8'))

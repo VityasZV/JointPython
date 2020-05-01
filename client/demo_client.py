@@ -1,3 +1,4 @@
+import sys
 import threading
 from email.parser import Parser
 import json
@@ -19,13 +20,14 @@ class Client:
         self.receiver = None
         self.rcv_success = threading.Event()
         self.rcv_success.clear()
+        self.read_shut = threading.Event()
 
     def connect_to_server(self, host, port):
         try:
             self.sock_fd = socket.create_connection((host, port))
             self.server_host = host
             self.server_port = port
-            self.receiver = threading.Thread(target=self.receive_forever, args=((self.rcv_success),))
+            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut,))
             self.receiver.start()
         except socket.gaierror:
             logging.warning("trouble finding server host")
@@ -38,6 +40,17 @@ class Client:
             return False
         self.state = "connected"
         return True
+
+    def disconnect(self):
+        data = json.dumps("disconnect")
+        data.encode('utf-8')
+        req = self.form_request_line(data, "disconnect")
+        if req:
+            self.transfer(req)
+            self.sock_fd.shutdown(socket.SHUT_WR)
+            self.read_shut.wait()
+            self.sock_fd.shutdown(socket.SHUT_RD)
+            self.sock_fd.close()
 
     def register(self):
         self.login = input("Login name: ")
@@ -72,7 +85,8 @@ class Client:
         if req:
             self.transfer(req)
 
-    def receive_forever(self, success):
+    def receive_forever(self, success, read_shut):
+        read_shut.clear()
         while True:
             resp = self.get_response()
             if resp and resp.status != '200' and resp.status != '204':
@@ -89,6 +103,11 @@ class Client:
                     self.auth_token = None
                     self.login = None
                     self.state = "connected"
+                elif data["status"] == "disconnect OK":
+                    success.set()
+                    logging.info("exited reading thread")
+                    read_shut.set()
+                    sys.exit()
                 elif data["status"] == "message":
                     print(data["text"])
                     continue
@@ -149,17 +168,21 @@ class Client:
 
 cl = Client()
 if cl.connect_to_server('localhost', 8000):
-    while True:
-        if cl.state == "connected":
-            answer = input("Register or Login?[r/l]")
-            if answer == "r":
-                cl.register()
-            elif answer == "l":
-                cl.log_in()
-        if cl.state == "logged":
-            answer = input("Logout or post message?[l/p]")
-            if answer == "l":
-                cl.log_out()
-            if answer == "p":
-                msg = input("Type here:")
-                cl.post_message(msg, "all")
+    try:
+        while True:
+            if cl.state == "connected":
+                answer = input("Register or Login?[r/l]")
+                if answer == "r":
+                    cl.register()
+                elif answer == "l":
+                    cl.log_in()
+            if cl.state == "logged":
+                answer = input("Logout or post message?[l/p]")
+                if answer == "l":
+                    cl.log_out()
+                if answer == "p":
+                    msg = input("Type here:")
+                    print(msg)
+                    cl.post_message(msg, "all")
+    except KeyboardInterrupt and EOFError:
+        cl.disconnect()
