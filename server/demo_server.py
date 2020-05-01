@@ -29,7 +29,7 @@ class MyHTTPServer:
         self._users = Users(self._pool.getconn())
         self._connections = {}  # TODO make class for connections
         self._chat_groups = ChatGroups(self._pool)
-        self._chat_groups['all'] = {Reciever(login) for login in self._users.keys()}
+        self._chat_groups['all'] = ("init", {login for login in self._users.keys()})
         self._serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, proto=0)
         logging.info("server initialized")
 

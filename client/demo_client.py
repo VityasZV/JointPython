@@ -21,6 +21,7 @@ class Client:
         self.auth_token = None
         self.sock_fd = None
         self.state = "start"
+        self.chats = None
         self.receiver = None
         self.rcv_success = threading.Event()
         self.rcv_success.clear()
@@ -84,6 +85,14 @@ class Client:
         if req:
             self.transfer(req)
 
+    def create_group(self, chat_name, users):
+        if not self.state == "logged":
+            return
+        data = json.dumps({"auth_token": self.auth_token, "name": chat_name, "users": users})
+        req = self.form_request_line(data, f"group/create")
+        if req:
+            self.transfer(req)
+
     def post_message(self, msg, group):
         if not self.state == "logged":
             return
@@ -102,26 +111,42 @@ class Client:
                 data = json.loads(resp.body.decode('utf-8'))
                 if data["status"] == "user_created":
                     print(resp.reason)
+
                 elif data["status"] == "logged in":
                     self.auth_token = data["token"]
                     self.state = "logged"
+                    self.chats = set(data["chats"])
+                    print(f"Your chats: {self.chats}")
                     print(self.state)
+
                 elif data["status"] == "logged out":
                     self.auth_token = None
                     self.login = None
+                    self.chats = None
                     self.state = "connected"
+
                 elif data["status"] == "disconnect OK":
                     success.set()
                     logging.info("exited reading thread")
                     read_shut.set()
                     sys.exit()
+
                 elif data["status"] == "message":
                     logging.info("got a message")
                     print(data["text"])
                     continue
+
                 elif data["status"] == "sent":
                     logging.info("sent a message")
                     pass
+
+                elif data["status"] == "create group":
+                    print(resp.reason)
+                    self.chats.add(data["name"])
+
+                elif data["status"] == "added to group":
+                    print(f"you've been added to group {data['name']}")
+                    self.chats.add(data["name"])
             success.set()
 
     def transfer(self, req):
@@ -195,13 +220,19 @@ if cl.connect_to_server('localhost', 8000):
                 elif answer == "l":
                     cl.log_in()
             if cl.state == "logged":
-                answer = input("Logout or post message?[l/p]")
+                answer = input("Logout, post message or create group?[l/p/c]")
                 if answer == "l":
                     cl.log_out()
                 if answer == "p":
-                    msg = input("Type here:")
+                    group = input("Which group?")
+                    msg = input("Type here: ")
                     print(msg)
-                    cl.post_message(msg, "all")
+                    cl.post_message(msg, group)
+                if answer == "c":
+                    msg = input("Type group name: ")
+                    users = input("List the users:")
+                    users = users.split(",")
+                    cl.create_group(msg, users)
         except Exception as e:
             cl.disconnect()
             raise e
