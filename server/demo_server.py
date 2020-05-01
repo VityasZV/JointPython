@@ -1,5 +1,5 @@
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE, ConnStatus
-from http_classes.base_classes import TokenConn, ChatGroups, Reciever, TokensConn, Users
+from http_classes.base_classes import TokenConn, ChatGroups, Reciever, TokensConn, Users, ChatGroup
 
 from email.parser import Parser
 import psycopg2
@@ -29,7 +29,8 @@ class MyHTTPServer:
         self._users = Users(self._pool.getconn())
         self._connections = {}  # TODO make class for connections
         self._chat_groups = ChatGroups(self._pool)
-        self._chat_groups['all'] = ("init", {login for login in self._users.keys()})
+        self._chat_groups['all'] = ChatGroup('all', "init", {login for login in self._users.keys()})
+        # "init" is a dummy administrator for chat 'all'
         self._serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, proto=0)
         logging.info("server initialized")
 

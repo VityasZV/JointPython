@@ -28,7 +28,6 @@ class Client:
         self.read_shut = threading.Event()
 
     def connect_to_server(self, host, port):
-        # a method for connecting to server
         try:
             self.sock_fd = socket.create_connection((host, port))
             self.server_host = host
@@ -48,7 +47,6 @@ class Client:
         return True
 
     def disconnect(self):
-        # a method for graceful disconnect
         self.log_out()  # log out before disconnecting if necessary
         data = json.dumps({"state": "connected"})
         data.encode('utf-8')

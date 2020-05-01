@@ -3,7 +3,7 @@ import os
 import socket
 import sys
 
-from http_classes.base_classes import TokenConn, TokensConn, User
+from http_classes.base_classes import TokenConn, TokensConn, User, ChatGroup
 from server.demo_server import MyHTTPServer
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE, ConnStatus
 
@@ -107,7 +107,7 @@ class FullHTTPServer(MyHTTPServer):
         token = data["auth_token"]
         admin = self._tokens_conn[token].login
         if not self._chat_groups.exists(data["name"]):
-            self._chat_groups[data["name"]] = (admin, set(data["users"]))
+            self._chat_groups[data["name"]] = ChatGroup(data["name"], admin, set(data["users"]))
             self._users[admin].chats.add(data["name"])
             for user in set(data["users"]):
                 if user in self._users.keys():
