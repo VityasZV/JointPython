@@ -91,6 +91,30 @@ class Client:
         if req:
             self.transfer(req)
 
+    def delete_group(self, chat_name):
+        if not self.state == "logged":
+            return
+        data = json.dumps({"auth_token": self.auth_token, "name": chat_name})
+        req = self.form_request_line(data, f"group/delete")
+        if req:
+            self.transfer(req)
+
+    def add_to_group(self, chat_name, users):
+        if not self.state == "logged":
+            return
+        data = json.dumps({"auth_token": self.auth_token, "name": chat_name, "users": users})
+        req = self.form_request_line(data, f"group/add")
+        if req:
+            self.transfer(req)
+
+    def exclude_from_group(self, chat_name, users):
+        if not self.state == "logged":
+            return
+        data = json.dumps({"auth_token": self.auth_token, "name": chat_name, "users": users})
+        req = self.form_request_line(data, f"group/exclude")
+        if req:
+            self.transfer(req)
+
     def post_message(self, msg, group):
         if not self.state == "logged":
             return
@@ -137,7 +161,6 @@ class Client:
                 elif data["status"] == "sent":
                     logging.info("sent a message")
                     print(data["text"])
-                    pass
 
                 elif data["status"] == "create group":
                     print(resp.reason)
@@ -146,6 +169,28 @@ class Client:
                 elif data["status"] == "added to group":
                     print(f"you've been added to group {data['name']}")
                     self.chats.add(data["name"])
+                    continue
+                elif data["status"] == "delete group":
+                    print(resp.reason)
+                    self.chats.discard(data["name"])
+                elif data["status"] == "group deleted":
+                    print(f"group {data['name']} has been deleted")
+                    self.chats.discard(data["name"])
+                    continue
+                elif data["status"] == "added":
+                    print(f'users {data["users"]} added to {data["name"]}')
+                elif data["status"] == "users added":
+                    print(f'users {data["users"]} added to {data["name"]}')
+                    if self.login in data["users"]:
+                        self.chats.add(data["name"])
+                    continue
+                elif data["status"] == "excluded":
+                    print(f'users {data["users"]} excluded from {data["name"]}')
+                elif data["status"] == "users excluded":
+                    print(f'users {data["users"]} excluded from {data["name"]}')
+                    if self.login in data["users"]:
+                        self.chats.discard(data["name"])
+                    continue
             success.set()
 
     def transfer(self, req):
@@ -219,7 +264,7 @@ if cl.connect_to_server('localhost', 8000):
                 elif answer == "l":
                     cl.log_in()
             if cl.state == "logged":
-                answer = input("Logout, post message or create group?[l/p/c]")
+                answer = input("Logout, post message or group action?[l/p/g]")
                 if answer == "l":
                     cl.log_out()
                 if answer == "p":
@@ -227,11 +272,26 @@ if cl.connect_to_server('localhost', 8000):
                     msg = input("Type here: ")
                     print(msg)
                     cl.post_message(msg, group)
-                if answer == "c":
-                    msg = input("Type group name: ")
-                    users = input("List the users:")
-                    users = users.split(",")
-                    cl.create_group(msg, users)
+                if answer == "g":
+                    reply = input("Create group, delete group, add users or exclude users?[c/d/a/e]: ")
+                    if reply == "c":
+                        msg = input("Group name: ")
+                        users = input("List the users:")
+                        users = users.split(",")
+                        cl.create_group(msg, users)
+                    elif reply == "d":
+                        msg = input("Group name: ")
+                        cl.delete_group(msg)
+                    elif reply == "a":
+                        msg = input("Group name: ")
+                        users = input("List the users:")
+                        users = users.split(",")
+                        cl.add_to_group(msg, users)
+                    elif reply == "e":
+                        msg = input("Group name: ")
+                        users = input("List the users:")
+                        users = users.split(",")
+                        cl.exclude_from_group(msg, users)
         except Exception as e:
             cl.disconnect()
             raise e

@@ -131,11 +131,11 @@ class ChatGroup:
         if admin != "init":
             self.users.add(admin)
 
-    def add_user(self, user):
-        self.users.add(user)
+    def add_users(self, users):
+        self.users.update(set(users))
 
-    def remove_user(self, user):
-        self.users.remove(user)
+    def remove_users(self, users):
+        self.users.difference_update(set(users))
 
     def has_user(self, user):
         return user in self.users
@@ -167,18 +167,59 @@ class ChatGroups:
             with Cursor(self._conn) as cursor:
                 cursor.execute(f"INSERT INTO chats "
                                f"SELECT '{chat_name}', '{group.admin}';")
+                for each in group.users:
+                    cursor.execute(f"INSERT INTO users_to_chats "
+                                   f"SELECT '{each}', '{chat_name}';")
                 self._conn.commit()
                 count = cursor.rowcount
                 logging.info(f'insert {count} values into chats')
                 if count == 0:
                     raise HTTPError(500, "chat group created locally but not inserted into database")
-                for each in group.users:
-                    cursor.execute(f"INSERT INTO users_to_chats "
-                                   f"SELECT '{each}', '{chat_name}';")
-                    self._conn.commit()
 
     def __delitem__(self, chat_name):
-        del self.chat_groups[chat_name]
+        if self[chat_name]:
+            with Cursor(self._conn) as cursor:
+                cursor.execute(f"DELETE FROM chats "
+                               f"WHERE name = '{chat_name}';"
+                               f"DELETE FROM users_to_chats "
+                               f"WHERE chat = '{chat_name}';")
+                self._conn.commit()
+                count = cursor.rowcount
+                logging.info(f'removed {count} values from chats and user_to_chats')
+                if count == 0:
+                    raise HTTPError(500, "failed to remove the chat")
+                del self.chat_groups[chat_name]
+
+        else:
+            raise HTTPError(405, "The user does not exist")
+
+    def add_users(self, chat_name, users):
+        if self[chat_name]:
+            with Cursor(self._conn) as cursor:
+                for each in users:
+                    if not self[chat_name].has_user(each):
+                        cursor.execute(f"INSERT INTO users_to_chats "
+                                       f"SELECT '{each}', '{chat_name}'")
+                self._conn.commit()
+                count = cursor.rowcount
+                logging.info(f'insert {count} values into chats')
+                if count == 0:
+                    raise HTTPError(500, "users added locally but not inserted into database")
+            self[chat_name].add_users(users)
+
+    def remove_users(self, chat_name, users):
+        if self[chat_name]:
+            with Cursor(self._conn) as cursor:
+                for each in users:
+                    if self[chat_name].has_user(each):
+                        cursor.execute(f"DELETE FROM users_to_chats "
+                                       f"WHERE login ='{each}' AND chat = '{chat_name}'")
+                self._conn.commit()
+                count = cursor.rowcount
+                logging.info(f'insert {count} values into chats')
+                if count == 0:
+                    raise HTTPError(500, "users removed locally but not from database")
+            self[chat_name].remove_users(users)
 
     @property
     def cursor(self):
