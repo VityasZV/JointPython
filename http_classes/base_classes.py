@@ -123,21 +123,59 @@ class Reciever:
         self.login = login
 
 
+class ChatGroup:
+    def __init__(self, name, admin, user_set=set()):
+        self.name = name
+        self.admin = admin
+        self.users = user_set
+        if admin != "init":
+            self.users.add(admin)
+
+    def add_user(self, user):
+        self.users.add(user)
+
+    def remove_user(self, user):
+        self.users.remove(user)
+
+    def has_user(self, user):
+        return user in self.users
+
+
 class ChatGroups:
     def __init__(self, db_pool: psycopg2.pool.ThreadedConnectionPool):
-        self.chat_groups = defaultdict(set)
+        self.chat_groups = defaultdict(ChatGroup)
         self._conn = db_pool.getconn()
         self._cursor = None
 
-    def __getitem__(self, chat_name) -> set:
+        with Cursor(self._conn) as cursor:
+            cursor.execute('SELECT * FROM chats')
+            records = cursor.fetchall()
+            for (name, admin) in records:
+                cursor.execute(f"SELECT login FROM users_to_chats WHERE chat = '{name}'")
+                users = cursor.fetchall()
+                self.chat_groups[name] = ChatGroup(name, admin, set(user for (user,) in users))
+
+    def __getitem__(self, chat_name):
         if self.chat_groups.get(chat_name):
             return self.chat_groups[chat_name]
         else:
-            return set()
+            return None
 
-    def __setitem__(self, chat_name, recievers):
-        for r in recievers:
-            self.chat_groups[chat_name].add(r)
+    def __setitem__(self, chat_name, group):
+        if self[chat_name] is None:
+            self.chat_groups[chat_name] = group
+            with Cursor(self._conn) as cursor:
+                cursor.execute(f"INSERT INTO chats "
+                               f"SELECT '{chat_name}', '{group.admin}';")
+                self._conn.commit()
+                count = cursor.rowcount
+                logging.info(f'insert {count} values into chats')
+                if count == 0:
+                    raise HTTPError(500, "chat group created locally but not inserted into database")
+                for each in group.users:
+                    cursor.execute(f"INSERT INTO users_to_chats "
+                                   f"SELECT '{each}', '{chat_name}';")
+                    self._conn.commit()
 
     def __delitem__(self, chat_name):
         del self.chat_groups[chat_name]
@@ -162,6 +200,8 @@ class ChatGroups:
     def set_cursor(self):
         self._cursor = self._conn.cursor()
 
+    def exists(self, chat_name):
+        return chat_name in self.chat_groups.keys()
 
 class User:
     def __init__(self, login: str, name: str, password: str):
@@ -170,6 +210,7 @@ class User:
         self.password = password
         self.auth_token = None
         self.connection = None
+        self.chats = None
 
     def logout(self):
         self.connection = None
@@ -185,9 +226,9 @@ class User:
 
     def json_prepare(self):
         return {
-            "login"         : self.login,
-            "name"          : self.name,
-            "auth_token"    : self.auth_token
+            "login": self.login,
+            "name": self.name,
+            "auth_token": self.auth_token
         }
 
 
@@ -196,12 +237,14 @@ class Users:
     def __init__(self, conn):
         self.users = {}
         self.conn = conn
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM users')
-        records = cursor.fetchall()
-        cursor.close()
-        for (login, name, password) in records:
-            self.users[login] = User(login, name, password)
+        with Cursor(self.conn) as cursor:
+            cursor.execute('SELECT * FROM users')
+            records = cursor.fetchall()
+            for (login, name, password) in records:
+                self.users[login] = User(login, name, password)
+                cursor.execute(f"SELECT chat FROM users_to_chats WHERE login = '{login}'")
+                chats = cursor.fetchall()
+                self.users[login].chats = set(chat for (chat,) in chats)
 
     def __getitem__(self, login) -> User or None:
         if self.users.get(login):
@@ -212,6 +255,7 @@ class Users:
     def __setitem__(self, login, user: User):
         if self[login] is None:
             self.users[login] = user
+            self.users[login].chats = {"all"}
             with Cursor(self.conn) as cursor:
                 cursor.execute(f"INSERT INTO users "
                                f"SELECT '{user.login}', '{user.name}', '{user.password}';")
@@ -220,6 +264,9 @@ class Users:
                 logging.info(f'insert {count} values into users')
                 if count == 0:
                     raise HTTPError(500, "user created locally but not inserted into database")
+                cursor.execute(f"INSERT INTO users_to_chats "
+                               f"SELECT '{user.login}',  'all';")
+                self.conn.commit()
         else:
             raise HTTPError(405, "This login is already in use")
 
@@ -227,7 +274,7 @@ class Users:
         if self[login]:
             with Cursor(self.conn) as cursor:
                 cursor.execute(f"DELETE FROM users "
-                                     f"WHERE login = '{login}';")
+                               f"WHERE login = '{login}';")
                 self.conn.commit()
                 count = cursor.rowcount
                 logging.info(f'removed {count} values into users')

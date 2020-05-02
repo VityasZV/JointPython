@@ -1,3 +1,5 @@
+import signal
+import sys
 import threading
 from email.parser import Parser
 import json
@@ -8,6 +10,9 @@ from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS,
 __all__ = ['Client']
 
 
+# logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
+#                    level=logging.DEBUG)
+
 class Client:
     def __init__(self):
         self.server_host = None
@@ -16,16 +21,18 @@ class Client:
         self.auth_token = None
         self.sock_fd = None
         self.state = "start"
+        self.chats = None
         self.receiver = None
         self.rcv_success = threading.Event()
         self.rcv_success.clear()
+        self.read_shut = threading.Event()
 
     def connect_to_server(self, host, port):
         try:
             self.sock_fd = socket.create_connection((host, port))
             self.server_host = host
             self.server_port = port
-            self.receiver = threading.Thread(target=self.receive_forever, args=((self.rcv_success),))
+            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut,))
             self.receiver.start()
         except socket.gaierror:
             logging.warning("trouble finding server host")
@@ -38,6 +45,18 @@ class Client:
             return False
         self.state = "connected"
         return True
+
+    def disconnect(self):
+        self.log_out()  # log out before disconnecting if necessary
+        data = json.dumps({"state": "connected"})
+        data.encode('utf-8')
+        req = self.form_request_line(data, "disconnect")
+        if req:
+            self.transfer(req)
+            self.sock_fd.shutdown(socket.SHUT_WR)
+            self.read_shut.wait()
+            self.sock_fd.shutdown(socket.SHUT_RD)
+            self.sock_fd.close()
 
     def register(self):
         self.login = input("Login name: ")
@@ -64,6 +83,14 @@ class Client:
         if req:
             self.transfer(req)
 
+    def create_group(self, chat_name, users):
+        if not self.state == "logged":
+            return
+        data = json.dumps({"auth_token": self.auth_token, "name": chat_name, "users": users})
+        req = self.form_request_line(data, f"group/create")
+        if req:
+            self.transfer(req)
+
     def post_message(self, msg, group):
         if not self.state == "logged":
             return
@@ -72,7 +99,8 @@ class Client:
         if req:
             self.transfer(req)
 
-    def receive_forever(self, success):
+    def receive_forever(self, success, read_shut):
+        read_shut.clear()
         while True:
             resp = self.get_response()
             if resp and resp.status != '200' and resp.status != '204':
@@ -81,19 +109,43 @@ class Client:
                 data = json.loads(resp.body.decode('utf-8'))
                 if data["status"] == "user_created":
                     print(resp.reason)
+
                 elif data["status"] == "logged in":
                     self.auth_token = data["token"]
                     self.state = "logged"
+                    self.chats = set(data["chats"])
+                    print(f"Your chats: {self.chats}")
                     print(self.state)
+
                 elif data["status"] == "logged out":
                     self.auth_token = None
                     self.login = None
+                    self.chats = None
                     self.state = "connected"
-                elif data["status"] == "message":
+
+                elif data["status"] == "disconnect OK":
+                    success.set()
+                    logging.info("exited reading thread")
+                    read_shut.set()
+                    sys.exit()
+
+                elif data["status"] == "incoming":
+                    logging.info("got a message")
                     print(data["text"])
                     continue
+
                 elif data["status"] == "sent":
+                    logging.info("sent a message")
+                    print(data["text"])
                     pass
+
+                elif data["status"] == "create group":
+                    print(resp.reason)
+                    self.chats.add(data["name"])
+
+                elif data["status"] == "added to group":
+                    print(f"you've been added to group {data['name']}")
+                    self.chats.add(data["name"])
             success.set()
 
     def transfer(self, req):
@@ -148,18 +200,39 @@ class Client:
 
 
 cl = Client()
+
+
+def handler(sig, frame):
+    cl.disconnect()
+    sys.exit()
+
+
+signal.signal(signal.SIGINT, handler)
+
 if cl.connect_to_server('localhost', 8000):
     while True:
-        if cl.state == "connected":
-            answer = input("Register or Login?[r/l]")
-            if answer == "r":
-                cl.register()
-            elif answer == "l":
-                cl.log_in()
-        if cl.state == "logged":
-            answer = input("Logout or post message?[l/p]")
-            if answer == "l":
-                cl.log_out()
-            if answer == "p":
-                msg = input("Type here:")
-                cl.post_message(msg, "all")
+        try:
+            if cl.state == "connected":
+                answer = input("Register or Login?[r/l]")
+                if answer == "r":
+                    cl.register()
+                elif answer == "l":
+                    cl.log_in()
+            if cl.state == "logged":
+                answer = input("Logout, post message or create group?[l/p/c]")
+                if answer == "l":
+                    cl.log_out()
+                if answer == "p":
+                    group = input("Which group?")
+                    msg = input("Type here: ")
+                    print(msg)
+                    cl.post_message(msg, group)
+                if answer == "c":
+                    msg = input("Type group name: ")
+                    users = input("List the users:")
+                    users = users.split(",")
+                    cl.create_group(msg, users)
+        except Exception as e:
+            cl.disconnect()
+            raise e
+            break

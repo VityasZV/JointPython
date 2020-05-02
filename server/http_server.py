@@ -1,8 +1,9 @@
 import hashlib
 import os
 import socket
+import sys
 
-from http_classes.base_classes import TokenConn, TokensConn, User
+from http_classes.base_classes import TokenConn, TokensConn, User, ChatGroup
 from server.demo_server import MyHTTPServer
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE, ConnStatus
 
@@ -46,6 +47,9 @@ class FullHTTPServer(MyHTTPServer):
             raise HTTPError(400, "Invalid token")
 
     def handle_request(self, req: Request, connection: socket.socket) -> Response:
+        if req.path == '/disconnect' and req.method == 'POST':
+            self.handle_post_disconnect(req, connection)
+
         if req.path == '/registry' and req.method == 'POST':
             return self.handle_post_registry(req)
 
@@ -68,6 +72,9 @@ class FullHTTPServer(MyHTTPServer):
         if req.path.startswith('/message/') and req.method == 'POST':
             return self.handle_message(req, connection)
 
+        if req.path.startswith('/group/') and req.method == 'POST':
+            return self.handle_group_action(req, connection)
+
         if req.path.startswith('/users/'):
             user_id = req.path[len('/users/'):]
             if user_id.isdigit():
@@ -75,10 +82,63 @@ class FullHTTPServer(MyHTTPServer):
 
         raise HTTPError(404, 'Not found')
 
+    def handle_group_action(self, req, connection):
+        data = json.loads(req.body)
+        action = req.path[len('/group/'):]
+        if not data["auth_token"]:
+            raise HTTPError(401, "Unauthorized")
+        if not data["name"]:
+            raise HTTPError(400, "Bad Request")
+        if action == "create":
+            return self.handle_group_create(req, connection)
+        elif action == "delete":
+            return self.handle_group_delete(req, connection)
+        elif action == "add":
+            return self.handle_group_add(req, connection)
+        elif action == "remove":
+            return self.handle_group_remove(req, connection)
+
+        raise HTTPError(404, 'Not found')
+
+    def handle_group_create(self, req, connection):
+        data = json.loads(req.body)
+        if not data["users"]:
+            raise HTTPError(400, "Bad Request")
+        token = data["auth_token"]
+        admin = self._tokens_conn[token].login
+        if not self._chat_groups.exists(data["name"]):
+            users = set(data["users"]).intersection(set(self._users.keys()))
+            self._chat_groups[data["name"]] = ChatGroup(data["name"], admin, users)
+            self._users[admin].chats.add(data["name"])
+            for user in users:
+                self._users[user].chats.add(data["name"])
+
+            inform = handle_response(req=req, resp_body={"status": "added to group", "name": data["name"]},
+                                     resp_status=200, resp_reason="OK", encoding="utf-8")
+            self.broadcast(inform, users, connection)
+
+            return handle_response(req=req, resp_body={"status": "create group", "name": data["name"]},
+                                   resp_status=204, resp_reason="Created", encoding="utf-8")
+
+        raise HTTPError(401, "Unauthorized")
+
+    def handle_post_disconnect(self, req, connection):
+        data = json.loads(req.body)
+        if data["state"] == "connected":
+            goodbye = handle_response(req=req, resp_body={"status": "disconnect OK"},
+                                      resp_status=200, resp_reason="OK", encoding="utf-8")
+            self.send_response(connection, goodbye)
+            connection.close()
+            del self._connections[connection]
+            logging.debug("thread closes because the client exited")
+            sys.exit()
+
+
     def handle_post_registry(self, req: Request) -> Response:
         data = json.loads(req.body.decode('utf-8'))
         login, name, password = data["login"], data["name"], data["password"]
         self._users[login] = User(login, name, password)
+        self._chat_groups["all"].add_user(login)
         return handle_response(req=req, resp_body={"status": "user created"}, resp_status=204,
                                resp_reason='Created', encoding='utf-8')
 
@@ -100,7 +160,8 @@ class FullHTTPServer(MyHTTPServer):
 
         auth_token = self._users.token_for_user(login=login, tokens_conn=self._tokens_conn,
                                                 conn_pool=self._pool, conn=connection)
-        return handle_response(req=req, resp_body={"status": "logged in", "token": auth_token}, resp_status=200,
+        logging.info(self._users[login].chats)
+        return handle_response(req=req, resp_body={"status": "logged in", "token": auth_token, "chats": list(self._users[login].chats)}, resp_status=200,
                                resp_reason='OK', encoding='utf-8', keep_alive=True)
 
     '''
@@ -162,26 +223,29 @@ class FullHTTPServer(MyHTTPServer):
         auth_token = data["auth_token"]
         if self._tokens_conn[auth_token] is None:
             raise HTTPError(404, 'Not found')
-        self.send_message(recievers_group, data, connection)
-        return handle_response(req=req, resp_body={"status": "sent"}, resp_status=200, resp_reason='OK', encoding='utf-8')
 
-    def send_message(self, recievers_group, data, connection):
-        if recievers_group == 'all':
-            for reciever in self._users.values():
-                if reciever.connection == connection:
-                    # не хотим отправлять сообщение самому себе
-                    # test
-                    #reciever["connection"].send(data["text"].encode('utf-8'))
-                    continue
-                else:
-                    if reciever.connection:
-                        contentType = f'application/json; charset=utf-8'
-                        body = json.dumps({"status": "message", "text": data["text"]})
-                        body = body.encode(f'utf-8')
-                        headers = [('Content-Type', contentType), ('Content-Length', len(body)),
-                                   ('Connection', 'Keep-Alive'), ('Keep-Alive', 'timeout=5, max=1000')]
-                        resp = Response(200, "OK", headers, body)
-                        self.send_response(reciever.connection, resp)
+        if not self._chat_groups.exists(recievers_group):
+            raise HTTPError(404, 'Not found')
+
+        if self._chat_groups[recievers_group].has_user(self._tokens_conn[auth_token].login):
+            self.send_message(req, recievers_group, data, connection)
+        else:
+            raise HTTPError(401, "Unauthorized")
+
+        return handle_response(req=req, resp_body={"status": "sent", "text": data["text"]}, resp_status=200, resp_reason='OK', encoding='utf-8')
+
+    def send_message(self, req, receivers_group, data, connection):
+        msg = handle_response(req=req, resp_body={"status": "incoming", "text": data["text"]},
+                              resp_status=200, resp_reason='OK', encoding='utf-8')
+        self.broadcast(msg, self._chat_groups[receivers_group].users, connection)
+
+    def broadcast(self, msg, group, connection):
+        for member in group:
+            if member != "init":
+                receiver = self._users[member]
+
+            if receiver.connection and receiver.connection != connection:
+                self.send_response(receiver.connection, msg)
 
 
 if __name__ == '__main__':
