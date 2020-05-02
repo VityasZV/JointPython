@@ -129,13 +129,14 @@ class Client:
                     read_shut.set()
                     sys.exit()
 
-                elif data["status"] == "message":
+                elif data["status"] == "incoming":
                     logging.info("got a message")
                     print(data["text"])
                     continue
 
                 elif data["status"] == "sent":
                     logging.info("sent a message")
+                    print(data["text"])
                     pass
 
                 elif data["status"] == "create group":
