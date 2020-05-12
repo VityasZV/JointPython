@@ -191,7 +191,7 @@ class ChatGroups:
                 del self.chat_groups[chat_name]
 
         else:
-            raise HTTPError(405, "The user does not exist")
+            raise HTTPError(404, "The chat does not exist")
 
     def add_users(self, chat_name, users):
         if self[chat_name]:
