@@ -95,8 +95,8 @@ class FullHTTPServer(MyHTTPServer):
             return self.handle_group_delete(req, connection)
         elif action == "add":
             return self.handle_group_add(req, connection)
-        elif action == "remove":
-            return self.handle_group_remove(req, connection)
+        elif action == "exclude":
+            return self.handle_group_exclude(req, connection)
 
         raise HTTPError(404, 'Not found')
 
@@ -122,6 +122,84 @@ class FullHTTPServer(MyHTTPServer):
 
         raise HTTPError(401, "Unauthorized")
 
+    def handle_group_delete(self, req, connection):
+        data = json.loads(req.body)
+        token = data["auth_token"]
+        admin = self._tokens_conn[token].login
+        chat_name = data["name"]
+        if not self._chat_groups.exists(chat_name):
+            raise HTTPError(404, 'Not found')
+
+        if admin != self._chat_groups[chat_name].admin:
+            raise HTTPError(401, "Unauthorized")
+
+        users = self._chat_groups[chat_name].users.copy()
+        del self._chat_groups[chat_name]
+        for user in users:
+            self._users[user].chats.discard(chat_name)
+
+        inform = handle_response(req=req, resp_body={"status": "group deleted", "name": chat_name},
+                                 resp_status=200, resp_reason="OK", encoding="utf-8")
+        self.broadcast(inform, users, connection)
+        return handle_response(req=req, resp_body={"status": "delete group", "name": chat_name},
+                               resp_status=200, resp_reason="OK", encoding="utf-8")
+
+    def handle_group_add(self, req, connection):
+        data = json.loads(req.body)
+        if not data["users"]:
+            raise HTTPError(400, "Bad Request")
+
+        token = data["auth_token"]
+        admin = self._tokens_conn[token].login
+        chat_name = data["name"]
+        users = set(data["users"])
+        users = users.intersection(set(self._users.keys()))
+        if not self._chat_groups.exists(chat_name):
+            raise HTTPError(404, 'Not found')
+
+        if admin != self._chat_groups[chat_name].admin:
+            raise HTTPError(401, "Unauthorized")
+
+        self._chat_groups.add_users(chat_name, users)
+        for user in users:
+            self._users[user].chats.add(chat_name)
+
+        all_users = self._chat_groups[chat_name].users
+        inform = handle_response(req=req, resp_body={"status": "users added", "name": chat_name, "users": list(users)},
+                                 resp_status=200, resp_reason="OK", encoding="utf-8")
+        self.broadcast(inform, all_users, connection)
+        return handle_response(req=req, resp_body={"status": "added", "name": chat_name, "users": list(users)},
+                               resp_status=200, resp_reason="OK", encoding="utf-8")
+
+    def handle_group_exclude(self, req, connection):
+        data = json.loads(req.body)
+        if not data["users"]:
+            raise HTTPError(400, "Bad Request")
+
+        token = data["auth_token"]
+        admin = self._tokens_conn[token].login
+        chat_name = data["name"]
+        users = set(data["users"])
+        users = users.intersection(set(self._users.keys()))
+
+        if not self._chat_groups.exists(chat_name):
+            raise HTTPError(404, 'Not found')
+
+        if admin != self._chat_groups[chat_name].admin:
+            raise HTTPError(401, "Unauthorized")
+
+        all_users = self._chat_groups[chat_name].users.copy()
+        self._chat_groups.remove_users(chat_name, users)
+        inform = handle_response(req=req, resp_body={"status": "users excluded", "name": chat_name, "users": list(users)},
+                                 resp_status=200, resp_reason="OK", encoding="utf-8")
+        for user in users:
+            self._users[user].chats.discard(chat_name)
+
+        self.broadcast(inform, all_users, connection)
+        return handle_response(req=req, resp_body={"status": "excluded", "name": chat_name, "users": list(users)},
+                               resp_status=200, resp_reason="OK", encoding="utf-8")
+
+
     def handle_post_disconnect(self, req, connection):
         data = json.loads(req.body)
         if data["state"] == "connected":
@@ -132,7 +210,6 @@ class FullHTTPServer(MyHTTPServer):
             del self._connections[connection]
             logging.debug("thread closes because the client exited")
             sys.exit()
-
 
     def handle_post_registry(self, req: Request) -> Response:
         data = json.loads(req.body.decode('utf-8'))
