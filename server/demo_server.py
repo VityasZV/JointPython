@@ -8,6 +8,8 @@ import socket
 import logging
 from _collections import defaultdict
 import threading
+from datetime import datetime, date, time
+
 
 # setting all logs
 __all__ = ["MyHTTPServer"]
@@ -60,6 +62,9 @@ class MyHTTPServer:
 
     def serve_client(self, conn: socket.socket, address):
         req = None
+        start = datetime.now()
+        timeout = 30 #30 seconds of timeout - affects only on connections from curls. Connections from demo_client.py are keeping alive
+        logging.debug(f"start of client = {start}")
         while True:
             req = None
             try:
@@ -70,6 +75,10 @@ class MyHTTPServer:
                         print(self._connections.values())
                         break
                     else:
+                        now = datetime.now()
+                        if (now - start).seconds >= timeout:
+                            logging.debug(f"closing thread({threading.current_thread().name}) because of inactivity of user for {timeout}s")
+                            break;
                         continue
                 req = self.parse_request(conn)
                 if req:
@@ -80,6 +89,7 @@ class MyHTTPServer:
                 logging.debug(f'thread id: {threading.currentThread().getName()} - finished cycle')
                 if req:
                     req.rfile.close()
+                start = datetime.now()
             except ConnectionResetError as e:
                 logging.warning(f"base disconnected : {e}")
                 break  # connection was lost, returning from thread
