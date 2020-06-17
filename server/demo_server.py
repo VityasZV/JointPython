@@ -22,7 +22,7 @@ class MyHTTPServer:
         self._port = port
         self._server_name = server_name
         self._tokens_conn = TokensConn()
-        self._pool = psycopg2.pool.ThreadedConnectionPool(1, 50, user='admin', password='', host=self._host,
+        self._pool = psycopg2.pool.ThreadedConnectionPool(1, 50, user='postgres', password='121298', host=self._host,
                                                           port=5432, database='chat')
         if self._pool:
             logging.info("connection pool created successfully")

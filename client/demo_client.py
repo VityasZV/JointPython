@@ -6,6 +6,29 @@ import json
 import logging
 import socket
 from http_classes.http_classes import Request, Response, HTTPError, MAX_HEADERS, MAX_LINE
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt5 import QtWidgets, uic
+from gui_templates.login import Ui_MainWindow
+from gui_templates.registration import Ui_MainWindow as Ui_Form
+from gui_templates.chatWindow import Ui_MainWindow as Ui_Chat
+from gui_templates.group import MyApp as Ui_Group
+
+
+
+class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
+    def __init__(self, *args, obj=None, **kwargs):
+        super(MainWindow, self).__init__(*args, **kwargs)
+        self.setupUi(self)
+
+class RegWindow(QtWidgets.QMainWindow, Ui_Form):
+    def __init__(self, *args, obj=None, **kwargs):
+        super(RegWindow, self).__init__(*args, **kwargs)
+        self.setupUi(self)
+
+class ChatWindow(QtWidgets.QMainWindow, Ui_Chat):
+    def __init__(self, *args, obj=None, **kwargs):
+        super(ChatWindow, self).__init__(*args, **kwargs)
+        self.setupUi(self)
 
 __all__ = ['Client']
 
@@ -13,8 +36,29 @@ __all__ = ['Client']
 # logging.basicConfig(format=u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
 #                    level=logging.DEBUG)
 
-class Client:
-    def __init__(self):
+
+
+
+class Client(QObject):
+    incoming_text = pyqtSignal(str)
+    show_chat = pyqtSignal()
+    show_group = pyqtSignal(set)
+
+    @pyqtSlot()
+    def run_group_gui(self):
+        for x in self.chats:
+            self.window4.addWidget(x)
+            self.window4.widget.lblName.clicked.connect(self.choose_group_gui)
+        self.window4.show()
+        self.window.hide()
+
+    @pyqtSlot()
+    def run_chat_gui(self):
+        self.window3.show()
+        self.window4.hide()
+
+    def __init__(self, *args, obj=None, **kwargs):
+        super(Client, self).__init__(*args, **kwargs)
         self.server_host = None
         self.server_port = None
         self.login = None
@@ -22,17 +66,89 @@ class Client:
         self.sock_fd = None
         self.state = "start"
         self.chats = None
+        self.shm = None
+        self.gui = None
         self.receiver = None
         self.rcv_success = threading.Event()
         self.rcv_success.clear()
         self.read_shut = threading.Event()
+        self.app = QtWidgets.QApplication(sys.argv)
+        self.current_chat = None
+        self.window = MainWindow()
+        self.window2 = RegWindow()
+        self.window3 = ChatWindow()
+        self.window4 = Ui_Group()
+        self.window3.pushButton_2.clicked.connect(self.log_out_gui)
+        self.window3.pushButton.clicked.connect(self.send_gui)
+        self.show_chat.connect(self.run_chat_gui)
+        self.show_group.connect(self.run_group_gui)
+
+    def choose_group_gui(self):
+        sender = self.sender()
+        self.current_chat = sender.text()
+        self.run_chat_gui()
+
+    def put_txt_gui(self, str):
+        self.window3.textBrowser.append("\n" + str)
+
+    def send_gui(self):
+        group = self.current_chat
+        msg = self.window3.plainTextEdit.toPlainText()
+        self.window3.plainTextEdit.clear()
+        print(msg)
+        data = json.dumps({"auth_token": self.auth_token, "text": msg})
+        req = self.form_request_line(data,  f"message/{group}")
+        if req:
+            self.transfer(req)
+
+    def log_out_gui(self):
+        data = json.dumps({"auth_token": self.auth_token})
+        req = self.form_request_line(data, "logout")
+        if req:
+            self.transfer(req)
+        self.window3.hide()
+        self.window.show()
+
+    def run_gui(self):
+        self.incoming_text.connect(self.put_txt_gui)
+        self.window.show()
+        self.window.pushButton.clicked.connect(self.log_in_gui)
+        self.window.pushButton_2.clicked.connect(self.reg_gui)
+        self.app.exec()
+
+    def reg_gui(self):
+        self.window.hide()
+        self.window2.show()
+        self.window2.pushButton_2.clicked.connect(self.registration_gui)
+
+    def registration_gui(self):
+        self.login = self.window2.lineEdit.text()
+        name = self.window2.lineEdit_3.text()
+        password = self.window2.lineEdit_2.text()
+        data = json.dumps({"login": self.login, "name": name, "password": password})
+        req = self.form_request_line(data, "registry")
+        self.window2.hide()
+        self.window.show()
+        if req:
+            self.transfer(req)
+
+
+
+
+    def log_in_gui(self):
+        self.login = self.window.lineEdit.text()
+        password = self.window.lineEdit_2.text()
+        data = json.dumps({"login": self.login, "password": password})
+        req = self.form_request_line(data, "login")
+        if req:
+            self.transfer(req)
 
     def connect_to_server(self, host, port):
         try:
             self.sock_fd = socket.create_connection((host, port))
             self.server_host = host
             self.server_port = port
-            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut,))
+            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut,self.shm,))
             self.receiver.start()
         except socket.gaierror:
             logging.warning("trouble finding server host")
@@ -123,7 +239,7 @@ class Client:
         if req:
             self.transfer(req)
 
-    def receive_forever(self, success, read_shut):
+    def receive_forever(self, success, read_shut, shm):
         read_shut.clear()
         while True:
             resp = self.get_response()
@@ -136,10 +252,15 @@ class Client:
 
                 elif data["status"] == "logged in":
                     self.auth_token = data["token"]
+                    #self.window3.show()
+
                     self.state = "logged"
                     self.chats = set(data["chats"])
-                    print(f"Your chats: {self.chats}")
-                    print(self.state)
+                    if self.gui:
+                        self.show_group.emit(self.chats)
+                    else:
+                        print(f"Your chats: {self.chats}")
+                        print(self.state)
 
                 elif data["status"] == "logged out":
                     self.auth_token = None
@@ -155,11 +276,16 @@ class Client:
 
                 elif data["status"] == "incoming":
                     logging.info("got a message")
-                    print(data["text"])
+                    if self.gui:
+                        self.incoming_text.emit(data["text"])
+                    else:
+                        print(data["text"])
                     continue
 
                 elif data["status"] == "sent":
                     logging.info("sent a message")
+                    if self.gui:
+                        self.incoming_text.emit(data["text"])
                     print(data["text"])
 
                 elif data["status"] == "create group":
@@ -255,43 +381,52 @@ def handler(sig, frame):
 signal.signal(signal.SIGINT, handler)
 
 if cl.connect_to_server('localhost', 8000):
+    ans = input("Gui y/n")
+    if ans == "y":
+        cl.gui = True
+    else:
+        cl.gui = False
     while True:
         try:
-            if cl.state == "connected":
-                answer = input("Register or Login?[r/l]")
-                if answer == "r":
-                    cl.register()
-                elif answer == "l":
-                    cl.log_in()
-            if cl.state == "logged":
-                answer = input("Logout, post message or group action?[l/p/g]")
-                if answer == "l":
-                    cl.log_out()
-                if answer == "p":
-                    group = input("Which group?")
-                    msg = input("Type here: ")
-                    print(msg)
-                    cl.post_message(msg, group)
-                if answer == "g":
-                    reply = input("Create group, delete group, add users or exclude users?[c/d/a/e]: ")
-                    if reply == "c":
-                        msg = input("Group name: ")
-                        users = input("List the users:")
-                        users = users.split(",")
-                        cl.create_group(msg, users)
-                    elif reply == "d":
-                        msg = input("Group name: ")
-                        cl.delete_group(msg)
-                    elif reply == "a":
-                        msg = input("Group name: ")
-                        users = input("List the users:")
-                        users = users.split(",")
-                        cl.add_to_group(msg, users)
-                    elif reply == "e":
-                        msg = input("Group name: ")
-                        users = input("List the users:")
-                        users = users.split(",")
-                        cl.exclude_from_group(msg, users)
+            if cl.gui == False:
+                if cl.state == "connected":
+                    answer = input("Register or Login?[r/l]")
+                    if answer == "r":
+                        cl.register()
+                    elif answer == "l":
+                        cl.log_in()
+                if cl.state == "logged":
+                    answer = input("Logout, post message or group action?[l/p/g]")
+                    if answer == "l":
+                        cl.log_out()
+                    if answer == "p":
+                        group = input("Which group?")
+                        msg = input("Type here: ")
+                        print(msg)
+                        cl.post_message(msg, group)
+                    if answer == "g":
+                        reply = input("Create group, delete group, add users or exclude users?[c/d/a/e]: ")
+                        if reply == "c":
+                            msg = input("Group name: ")
+                            users = input("List the users:")
+                            users = users.split(",")
+                            cl.create_group(msg, users)
+                        elif reply == "d":
+                            msg = input("Group name: ")
+                            cl.delete_group(msg)
+                        elif reply == "a":
+                            msg = input("Group name: ")
+                            users = input("List the users:")
+                            users = users.split(",")
+                            cl.add_to_group(msg, users)
+                        elif reply == "e":
+                            msg = input("Group name: ")
+                            users = input("List the users:")
+                            users = users.split(",")
+                            cl.exclude_from_group(msg, users)
+            if cl.gui == True:
+                cl.run_gui()
+
         except Exception as e:
             cl.disconnect()
             raise e
