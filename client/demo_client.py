@@ -75,13 +75,24 @@ class Client(QObject):
         self.app = QtWidgets.QApplication(sys.argv)
         self.current_chat = None
         self.window = MainWindow()
+        self.window.pushButton_3.clicked.connect(self.exit_gui)
         self.window2 = RegWindow()
         self.window3 = ChatWindow()
         self.window4 = Ui_Group()
         self.window3.pushButton_2.clicked.connect(self.log_out_gui)
         self.window3.pushButton.clicked.connect(self.send_gui)
+        self.window3.pushButton_3.clicked.connect(self.back_to_choose_group_gui)
         self.show_chat.connect(self.run_chat_gui)
         self.show_group.connect(self.run_group_gui)
+
+    def exit_gui(self):
+        self.disconnect()
+        sys.exit()
+
+
+    def back_to_choose_group_gui(self):
+        self.window4.show()
+        self.window3.hide()
 
     def choose_group_gui(self):
         sender = self.sender()
