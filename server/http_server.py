@@ -215,7 +215,7 @@ class FullHTTPServer(MyHTTPServer):
         data = json.loads(req.body.decode('utf-8'))
         login, name, password = data["login"], data["name"], data["password"]
         self._users[login] = User(login, name, password)
-        self._chat_groups["all"].add_user(login)
+        self._chat_groups["all"].add_users(login)
         return handle_response(req=req, resp_body={"status": "user created"}, resp_status=204,
                                resp_reason='Created', encoding='utf-8')
 
@@ -297,6 +297,7 @@ class FullHTTPServer(MyHTTPServer):
     def handle_message(self, req: Request, connection: socket.socket) -> Response:
         recievers_group = req.path[len('/message/'):]
         data = json.loads(req.body)
+        fl = True
         auth_token = data["auth_token"]
         if self._tokens_conn[auth_token] is None:
             raise HTTPError(404, 'Not found')
@@ -305,14 +306,17 @@ class FullHTTPServer(MyHTTPServer):
             raise HTTPError(404, 'Not found')
 
         if self._chat_groups[recievers_group].has_user(self._tokens_conn[auth_token].login):
+            data["text"] = (self._tokens_conn[auth_token].login) + ": " + data["text"]
+            fl = False
             self.send_message(req, recievers_group, data, connection)
         else:
             raise HTTPError(401, "Unauthorized")
-
-        return handle_response(req=req, resp_body={"status": "sent", "text": data["text"]}, resp_status=200, resp_reason='OK', encoding='utf-8')
+        if fl:
+            data["text"] = (self._tokens_conn[auth_token].login) + ": " + data["text"]
+        return handle_response(req=req, resp_body={"status": "sent", "text": data["text"], "group" : recievers_group}, resp_status=200, resp_reason='OK', encoding='utf-8')
 
     def send_message(self, req, receivers_group, data, connection):
-        msg = handle_response(req=req, resp_body={"status": "incoming", "text": data["text"]},
+        msg = handle_response(req=req, resp_body={"status": "incoming", "text": data["text"], "group" : receivers_group},
                               resp_status=200, resp_reason='OK', encoding='utf-8')
         self.broadcast(msg, self._chat_groups[receivers_group].users, connection)
 

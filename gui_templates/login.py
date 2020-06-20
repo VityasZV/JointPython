@@ -1,4 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
+import sys
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -9,7 +10,7 @@ class Ui_MainWindow(object):
         self.verticalLayout_3 = QtWidgets.QVBoxLayout(self.centralwidget)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
         self.verticalLayout = QtWidgets.QVBoxLayout()
-        self.verticalLayout.setObjectName("verticalLayout")
+        self.verticalLayout.setObjectName("verttransfericalLayout")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout()
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.label = QtWidgets.QLabel(self.centralwidget)
@@ -53,3 +54,7 @@ class Ui_MainWindow(object):
         self.label_3.setText(_translate("MainWindow", "Do not have an account yet?"))
         self.pushButton_2.setText(_translate("MainWindow", "Sign Up"))
 
+if __name__ == '__main__':
+    app = QtWidgets.QApplication(sys.argv)
+    ex = Ui_MainWindow()
+    sys.exit(app.exec_())
