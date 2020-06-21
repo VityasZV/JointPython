@@ -1,5 +1,4 @@
 import gettext
-
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 class Ui_MainWindow(object):
@@ -25,7 +24,7 @@ class Ui_MainWindow(object):
         for x in group:
             print(x)
             new_btn = QtWidgets.QPushButton(x, self)
-            new_btn.move(b,b)
+            new_btn.move(b, b)
             a.append(new_btn)
         return a
 

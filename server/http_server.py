@@ -224,7 +224,7 @@ class FullHTTPServer(MyHTTPServer):
         login = data["login"]
         del self._users[login]
         return handle_response(req=req, resp_body={"status": "user removed from database"}, resp_status=204,
-                                   resp_reason='Removed', encoding='utf-8')
+                               resp_reason='Removed', encoding='utf-8')
 
     def handle_post_login(self, req, connection: socket.socket):
         data = json.loads(req.body)
@@ -268,7 +268,7 @@ class FullHTTPServer(MyHTTPServer):
         return handle_response(req=req, resp_body=users,
                                resp_status=200, resp_reason='OK', encoding='utf-8')
 
-    def handle_get_user(self, req: Request, login : str) -> Response:
+    def handle_get_user(self, req: Request, login: str) -> Response:
         user = self._users[login]
         if not user:
             raise HTTPError(404, 'Not found')

@@ -1,3 +1,4 @@
+# pylint: skip-file
 from unittest import TestCase
 import requests
 import server.http_server as srv
