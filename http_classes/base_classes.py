@@ -1,3 +1,4 @@
+# pylint: skip-file
 import hashlib
 import os
 from socket import socket

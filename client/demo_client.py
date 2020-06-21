@@ -16,17 +16,17 @@ from gui_templates.group import MyApp as Ui_Group
 
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
-    def __init__(self, *args, obj=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
         self.setupUi(self)
 
 class RegWindow(QtWidgets.QMainWindow, Ui_Form):
-    def __init__(self, *args, obj=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(RegWindow, self).__init__(*args, **kwargs)
         self.setupUi(self)
 
 class ChatWindow(QtWidgets.QMainWindow, Ui_Chat):
-    def __init__(self, *args, obj=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(ChatWindow, self).__init__(*args, **kwargs)
         self.setupUi(self)
 
@@ -57,7 +57,7 @@ class Client(QObject):
         self.window3.show()
         self.window4.hide()
 
-    def __init__(self, *args, obj=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(Client, self).__init__(*args, **kwargs)
         self.server_host = None
         self.server_port = None
@@ -93,6 +93,8 @@ class Client(QObject):
     def back_to_choose_group_gui(self):
         self.window4.show()
         self.window3.hide()
+        self.window3.plainTextEdit.clear()
+        self.window3.textBrowser.clear()
 
     def choose_group_gui(self):
         sender = self.sender()
@@ -108,7 +110,7 @@ class Client(QObject):
         self.window3.plainTextEdit.clear()
         print(msg)
         data = json.dumps({"auth_token": self.auth_token, "text": msg})
-        req = self.form_request_line(data,  f"message/{group}")
+        req = self.form_request_line(data, f"message/{group}")
         if req:
             self.transfer(req)
 
@@ -117,7 +119,10 @@ class Client(QObject):
         req = self.form_request_line(data, "logout")
         if req:
             self.transfer(req)
+        self.window4 = Ui_Group()
         self.window3.hide()
+        self.window3.plainTextEdit.clear()
+        self.window3.textBrowser.clear()
         self.window.show()
 
     def run_gui(self):
@@ -159,7 +164,7 @@ class Client(QObject):
             self.sock_fd = socket.create_connection((host, port))
             self.server_host = host
             self.server_port = port
-            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut,self.shm,))
+            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut, ))
             self.receiver.start()
         except socket.gaierror:
             logging.warning("trouble finding server host")
@@ -250,7 +255,7 @@ class Client(QObject):
         if req:
             self.transfer(req)
 
-    def receive_forever(self, success, read_shut, shm):
+    def receive_forever(self, success, read_shut):
         read_shut.clear()
         while True:
             resp = self.get_response()
@@ -349,6 +354,7 @@ class Client(QObject):
     def get_response(self):
         buffer = self.sock_fd.makefile('rb')
         ver, status, reason = self.parse_response_line(buffer)
+        ver = None
         headers = self.parse_headers(buffer)
         size = headers.get('Content-Length')
         if not size:
@@ -384,7 +390,7 @@ class Client(QObject):
 cl = Client()
 
 
-def handler(sig, frame):
+def handler():
     cl.disconnect()
     sys.exit()
 
@@ -399,7 +405,7 @@ if cl.connect_to_server('localhost', 8000):
         cl.gui = False
     while True:
         try:
-            if cl.gui == False:
+            if not cl.gui:
                 if cl.state == "connected":
                     answer = input("Register or Login?[r/l]")
                     if answer == "r":
@@ -435,10 +441,9 @@ if cl.connect_to_server('localhost', 8000):
                             users = input("List the users:")
                             users = users.split(",")
                             cl.exclude_from_group(msg, users)
-            if cl.gui == True:
+            if cl.gui:
                 cl.run_gui()
 
         except Exception as e:
             cl.disconnect()
             raise e
-            break

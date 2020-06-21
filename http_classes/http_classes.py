@@ -1,3 +1,4 @@
+# pylint: skip-file
 from enum import Enum
 from functools import lru_cache
 from urllib.parse import parse_qs, urlparse
