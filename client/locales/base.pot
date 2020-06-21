@@ -1,0 +1,132 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR ORGANIZATION
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"POT-Creation-Date: 2020-06-21 20:05+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: pygettext.py 1.5\n"
+
+
+#: client/demo_client.py:190
+msgid "User name: "
+msgstr ""
+
+#: client/demo_client.py:191 client/demo_client.py:199
+msgid "Password: "
+msgstr ""
+
+#: client/demo_client.py:198
+msgid "Login name: "
+msgstr ""
+
+#: client/demo_client.py:273
+msgid "Your chats: {0}"
+msgstr ""
+
+#: client/demo_client.py:307
+msgid "You have been added to group: {0}"
+msgstr ""
+
+#: client/demo_client.py:314
+msgid "group {0} has been deleted"
+msgstr ""
+
+#: client/demo_client.py:318 client/demo_client.py:320
+msgid "users {0} added to {1}"
+msgstr ""
+
+#: client/demo_client.py:325 client/demo_client.py:327
+msgid "users {0} excluded from {1}"
+msgstr ""
+
+#: client/demo_client.py:405
+msgid "Gui y/n"
+msgstr ""
+
+#: client/demo_client.py:414
+msgid "Register or Login?[r/l]"
+msgstr ""
+
+#: client/demo_client.py:420
+msgid "Logout, post message or group action?[l/p/g]"
+msgstr ""
+
+#: client/demo_client.py:424
+msgid "Which group?"
+msgstr ""
+
+#: client/demo_client.py:425
+msgid "Type here: "
+msgstr ""
+
+#: client/demo_client.py:429
+msgid "Create group, delete group, add users or exclude users?[c/d/a/e]: "
+msgstr ""
+
+#: client/demo_client.py:431 client/demo_client.py:436
+#: client/demo_client.py:439 client/demo_client.py:444
+msgid "Group name: "
+msgstr ""
+
+#: client/demo_client.py:432 client/demo_client.py:440
+#: client/demo_client.py:445
+msgid "List the users:"
+msgstr ""
+
+#: chatWindow.py:93
+msgid "Chat"
+msgstr ""
+
+#: chatWindow.py:94
+msgid "Log Out"
+msgstr ""
+
+#: chatWindow.py:95
+msgid "Send"
+msgstr ""
+
+#: groups.py:32
+msgid "Groups"
+msgstr ""
+
+#: login.py:43
+msgid "Exit"
+msgstr ""
+
+#: login.py:54 login.py:55 registration.py:51
+msgid "Login"
+msgstr ""
+
+#: login.py:56 registration.py:53
+msgid "Password"
+msgstr ""
+
+#: login.py:57
+msgid "Sign In"
+msgstr ""
+
+#: login.py:58
+msgid "Do not have an account yet?"
+msgstr ""
+
+#: login.py:59 registration.py:54
+msgid "Sign Up"
+msgstr ""
+
+#: registration.py:50
+msgid "Register"
+msgstr ""
+
+#: registration.py:52
+msgid "Name"
+msgstr ""
+
+
