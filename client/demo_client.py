@@ -394,7 +394,7 @@ _ = el.gettext
 cl = Client()
 
 
-def handler():
+def handler(sig, frame):
     cl.disconnect()
     sys.exit()
 
@@ -456,3 +456,4 @@ if cl.connect_to_server('localhost', 8000):
         except Exception as e:
             cl.disconnect()
             raise e
+
