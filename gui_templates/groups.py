@@ -1,3 +1,5 @@
+import gettext
+
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 class Ui_MainWindow(object):
@@ -28,5 +30,8 @@ class Ui_MainWindow(object):
         return a
 
     def retranslateUi(self, MainWindow):
+        el = gettext.translation('base', localedir='locales', languages=['ua'])
+        el.install()
+        _ = el.gettext
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        MainWindow.setWindowTitle(_translate("MainWindow", _("Groups")))
