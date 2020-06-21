@@ -1,8 +1,13 @@
-from PyQt5 import QtCore, QtWidgets
-
+import gettext
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
+        self.el = gettext.translation('base', localedir='locales', languages=['ua'])
+        self.el.install()
+        _ = self.el.gettext
+        self.lngs = ['en', 'ua']
+        self.it = 0
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(548, 392)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -13,6 +18,13 @@ class Ui_MainWindow(object):
         self.verticalLayout.setObjectName("verticalLayout")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout()
         self.verticalLayout_2.setObjectName("verticalLayout_2")
+        self.horizontalLayout_4 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_4.setSizeConstraint(QtWidgets.QLayout.SetFixedSize)
+        self.horizontalLayout_4.setObjectName("horizontalLayout_4")
+        self.pushButton_4 = QtWidgets.QPushButton(self.centralwidget)
+        self.horizontalLayout_4.addWidget(self.pushButton_4)
+        self.pushButton_4.setText(_("EN|UA"))
+        self.pushButton_4.clicked.connect(lambda: self.trsl(MainWindow))
         self.label = QtWidgets.QLabel(self.centralwidget)
         self.label.setObjectName("label")
         self.verticalLayout_2.addWidget(self.label)
@@ -45,13 +57,19 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+    def trsl(self, MainWindow):
+        self.it = (self.it + 1) % 2
+        self.el = gettext.translation('base', localedir='locales', languages=[self.lngs[self.it]])
+        self.el.install()
+        self.retranslateUi(MainWindow)
+
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-        self.label.setText(_translate("MainWindow", "Login"))
-        self.label_3.setText(_translate("MainWindow", "Name"))
-        self.label_2.setText(_translate("MainWindow", "Password"))
-        self.pushButton_2.setText(_translate("MainWindow", "Sign Up"))
+        MainWindow.setWindowTitle(_translate("MainWindow", _("Register")))
+        self.label.setText(_translate("MainWindow", _("Login")))
+        self.label_3.setText(_translate("MainWindow", _("Name")))
+        self.label_2.setText(_translate("MainWindow", _("Password")))
+        self.pushButton_2.setText(_translate("MainWindow", _("Sign Up")))
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

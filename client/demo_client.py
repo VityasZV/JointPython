@@ -12,7 +12,7 @@ from gui_templates.login import Ui_MainWindow
 from gui_templates.registration import Ui_MainWindow as Ui_Form
 from gui_templates.chatWindow import Ui_MainWindow as Ui_Chat
 from gui_templates.group import MyApp as Ui_Group
-
+import gettext
 
 
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -192,16 +192,16 @@ class Client(QObject):
 
     def register(self):
         self.login = input("Login name: ")
-        name = input("User name: ")
-        password = input("Password: ")
+        name = input(_("User name: "))
+        password = input(_("Password: "))
         data = json.dumps({"login": self.login, "name": name, "password": password})
         req = self.form_request_line(data, "registry")
         if req:
             self.transfer(req)
 
     def log_in(self):
-        self.login = input("Login name: ")
-        password = input("Password: ")
+        self.login = input(_("Login name: "))
+        password = input(_("Password: "))
         data = json.dumps({"login": self.login, "password": password})
         req = self.form_request_line(data, "login")
         if req:
@@ -275,7 +275,7 @@ class Client(QObject):
                     if self.gui:
                         self.show_group.emit(self.chats)
                     else:
-                        print(f"Your chats: {self.chats}")
+                        print(_('Your chats: {0}').format(self.chats))
                         print(self.state)
 
                 elif data["status"] == "logged out":
@@ -309,27 +309,27 @@ class Client(QObject):
                     self.chats.add(data["name"])
 
                 elif data["status"] == "added to group":
-                    print(f"you've been added to group {data['name']}")
+                    print(_('You have been added to group: {0}').format(data['name']))
                     self.chats.add(data["name"])
                     continue
                 elif data["status"] == "delete group":
                     print(resp.reason)
                     self.chats.discard(data["name"])
                 elif data["status"] == "group deleted":
-                    print(f"group {data['name']} has been deleted")
+                    print(_('group {0} has been deleted').format(data['name']))
                     self.chats.discard(data["name"])
                     continue
                 elif data["status"] == "added":
-                    print(f'users {data["users"]} added to {data["name"]}')
+                    print(_('users {0} added to {1}').format(data["users"], data["name"]))
                 elif data["status"] == "users added":
-                    print(f'users {data["users"]} added to {data["name"]}')
+                    print(_('users {0} added to {1}').format(data["users"], data["name"]))
                     if self.login in data["users"]:
                         self.chats.add(data["name"])
                     continue
                 elif data["status"] == "excluded":
-                    print(f'users {data["users"]} excluded from {data["name"]}')
+                    print(_('users {0} excluded from {1}').format(data["users"], data["name"]))
                 elif data["status"] == "users excluded":
-                    print(f'users {data["users"]} excluded from {data["name"]}')
+                    print(_('users {0} excluded from {1}').format(data["users"], data["name"]))
                     if self.login in data["users"]:
                         self.chats.discard(data["name"])
                     continue
@@ -387,6 +387,10 @@ class Client(QObject):
         return Parser().parsestr(sheaders)
 
 
+el = gettext.translation('base', localedir='locales', languages=['ua'])
+el.install()
+_ = el.gettext
+
 cl = Client()
 
 
@@ -398,47 +402,52 @@ def handler():
 signal.signal(signal.SIGINT, handler)
 
 if cl.connect_to_server('localhost', 8000):
-    ans = input("Gui y/n")
+    ans = input(_("Gui y/n"))
     if ans == "y":
         cl.gui = True
     else:
         cl.gui = False
+        ans = input("Language: en [1], ua [2]")
+        if ans == "1":
+            el = gettext.translation('base', localedir='locales', languages=['en'])
+            el.install()
+            _ = el.gettext
     while True:
         try:
             if not cl.gui:
                 if cl.state == "connected":
-                    answer = input("Register or Login?[r/l]")
+                    answer = input(_("Register or Login?[r/l]"))
                     if answer == "r":
                         cl.register()
                     elif answer == "l":
                         cl.log_in()
                 if cl.state == "logged":
-                    answer = input("Logout, post message or group action?[l/p/g]")
+                    answer = input(_("Logout, post message or group action?[l/p/g]"))
                     if answer == "l":
                         cl.log_out()
                     if answer == "p":
-                        group = input("Which group?")
-                        msg = input("Type here: ")
+                        group = input(_("Which group?"))
+                        msg = input(_("Type here: "))
                         print(msg)
                         cl.post_message(msg, group)
                     if answer == "g":
-                        reply = input("Create group, delete group, add users or exclude users?[c/d/a/e]: ")
+                        reply = input(_("Create group, delete group, add users or exclude users?[c/d/a/e]: "))
                         if reply == "c":
-                            msg = input("Group name: ")
-                            users = input("List the users:")
+                            msg = input(_("Group name: "))
+                            users = input(_("List the users:"))
                             users = users.split(",")
                             cl.create_group(msg, users)
                         elif reply == "d":
-                            msg = input("Group name: ")
+                            msg = input(_("Group name: "))
                             cl.delete_group(msg)
                         elif reply == "a":
-                            msg = input("Group name: ")
-                            users = input("List the users:")
+                            msg = input(_("Group name: "))
+                            users = input(_("List the users:"))
                             users = users.split(",")
                             cl.add_to_group(msg, users)
                         elif reply == "e":
-                            msg = input("Group name: ")
-                            users = input("List the users:")
+                            msg = input(_("Group name: "))
+                            users = input(_("List the users:"))
                             users = users.split(",")
                             cl.exclude_from_group(msg, users)
             if cl.gui:

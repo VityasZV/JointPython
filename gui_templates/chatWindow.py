@@ -1,8 +1,15 @@
+import gettext
+
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
+        self.el = gettext.translation('base', localedir='locales', languages=['ua'])
+        self.el.install()
+        _ = self.el.gettext
+        self.lngs = ['en', 'ua']
+        self.it = 0
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(549, 563)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -57,6 +64,13 @@ class Ui_MainWindow(object):
         self.pushButton_2.setLayoutDirection(QtCore.Qt.LeftToRight)
         self.pushButton_2.setObjectName("pushButton_2")
         self.horizontalLayout_3.addWidget(self.pushButton_2)
+        self.horizontalLayout_4 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_4.setSizeConstraint(QtWidgets.QLayout.SetFixedSize)
+        self.horizontalLayout_4.setObjectName("horizontalLayout_4")
+        self.pushButton_4 = QtWidgets.QPushButton(self.centralwidget)
+        self.horizontalLayout_4.addWidget(self.pushButton_4)
+        self.pushButton_4.setText(_("EN|UA"))
+        self.pushButton_4.clicked.connect(lambda: self.trsl(MainWindow))
         self.pushButton = QtWidgets.QPushButton(self.centralwidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
@@ -71,7 +85,6 @@ class Ui_MainWindow(object):
         self.horizontalLayout_3.addWidget(self.pushButton)
         self.verticalLayout_3.addLayout(self.horizontalLayout_3)
         self.pushButton_3 = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton_3.setText("Choose room")
         self.pushButton_3.setObjectName("pushbutton_3")
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
@@ -88,8 +101,16 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+    def trsl(self, MainWindow):
+        self.it = (self.it + 1) % 2
+        self.el = gettext.translation('base', localedir='locales', languages=[self.lngs[self.it]])
+        self.el.install()
+        self.retranslateUi(MainWindow)
+
     def retranslateUi(self, MainWindow):
+        _ = self.el.gettext
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
-        self.pushButton_2.setText(_translate("MainWindow", "Log Out"))
-        self.pushButton.setText(_translate("MainWindow", "Send"))
+        MainWindow.setWindowTitle(_translate("MainWindow", _("Chat")))
+        self.pushButton_2.setText(_translate("MainWindow", _("Log Out")))
+        self.pushButton.setText(_translate("MainWindow", _("Send")))
+        self.pushButton_3.setText(_translate("MainWindow", _("Choose room")))
