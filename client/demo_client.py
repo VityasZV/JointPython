@@ -159,7 +159,7 @@ class Client(QObject):
             self.sock_fd = socket.create_connection((host, port))
             self.server_host = host
             self.server_port = port
-            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut, self.shm,))
+            self.receiver = threading.Thread(target=self.receive_forever, args=(self.rcv_success, self.read_shut, ))
             self.receiver.start()
         except socket.gaierror:
             logging.warning("trouble finding server host")
@@ -349,6 +349,7 @@ class Client(QObject):
     def get_response(self):
         buffer = self.sock_fd.makefile('rb')
         ver, status, reason = self.parse_response_line(buffer)
+        ver = None
         headers = self.parse_headers(buffer)
         size = headers.get('Content-Length')
         if not size:
