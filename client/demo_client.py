@@ -93,6 +93,8 @@ class Client(QObject):
     def back_to_choose_group_gui(self):
         self.window4.show()
         self.window3.hide()
+        self.window3.plainTextEdit.clear()
+        self.window3.textBrowser.clear()
 
     def choose_group_gui(self):
         sender = self.sender()
@@ -117,7 +119,10 @@ class Client(QObject):
         req = self.form_request_line(data, "logout")
         if req:
             self.transfer(req)
+        self.window4 = Ui_Group()
         self.window3.hide()
+        self.window3.plainTextEdit.clear()
+        self.window3.textBrowser.clear()
         self.window.show()
 
     def run_gui(self):
