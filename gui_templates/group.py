@@ -1,14 +1,12 @@
 import sys
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 class ExampleWidget(QGroupBox):
-    def __init__(self, numAddWidget,x):
+    def __init__(self, numAddWidget, x):
         QGroupBox.__init__(self)
         self.name = x
         self.numAddWidget = numAddWidget
-        self.numAddItem   = 1
+        self.numAddItem = 1
         self.initSubject()
         self.organize()
 
@@ -19,7 +17,7 @@ class ExampleWidget(QGroupBox):
     def organize(self):
         grid = QGridLayout(self)
         self.setLayout(grid)
-        grid.addWidget(self.lblName,        0, 0, 0, 0)
+        grid.addWidget(self.lblName, 0, 0, 0, 0)
 
 
 
@@ -45,9 +43,9 @@ class MyApp(QWidget):
         self.layoutV.addWidget(self.area)
         self.setGeometry(700, 200, 350, 300)
 
-    def addWidget(self,x):
+    def addWidget(self, x):
         self.numAddWidget += 1
-        self.widget = ExampleWidget(self.numAddWidget,x)
+        self.widget = ExampleWidget(self.numAddWidget, x)
         self.gridLayout.addWidget(self.widget)
 
 if __name__ == '__main__':
