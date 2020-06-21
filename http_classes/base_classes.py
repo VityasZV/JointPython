@@ -132,10 +132,10 @@ class ChatGroup:
             self.users.add(admin)
 
     def add_users(self, users):
-        self.users.update(set(users))
+        self.users.add(users)
 
     def remove_users(self, users):
-        self.users.difference_update(set(users))
+        self.users.remove(users)
 
     def has_user(self, user):
         return user in self.users
@@ -205,7 +205,8 @@ class ChatGroups:
                 logging.info(f'insert {count} values into chats')
                 if count == 0:
                     raise HTTPError(500, "users added locally but not inserted into database")
-            self[chat_name].add_users(users)
+            for each in users:
+                self[chat_name].add_users(each)
 
     def remove_users(self, chat_name, users):
         if self[chat_name]:
@@ -219,7 +220,8 @@ class ChatGroups:
                 logging.info(f'insert {count} values into chats')
                 if count == 0:
                     raise HTTPError(500, "users removed locally but not from database")
-            self[chat_name].remove_users(users)
+            for each in users:
+                self[chat_name].remove_users(each)
 
     @property
     def cursor(self):
