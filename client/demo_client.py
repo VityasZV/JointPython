@@ -386,73 +386,72 @@ class Client(QObject):
         sheaders = b''.join(headers).decode('iso-8859-1')
         return Parser().parsestr(sheaders)
 
+def run():
+    locale_path = 'client/locales/'
+    el = gettext.translation('base', localedir=locale_path, languages=['ua'])
+    el.install()
+    _ = el.gettext
 
-el = gettext.translation('base', localedir='locales', languages=['ua'])
-el.install()
-_ = el.gettext
+    cl = Client()
 
-cl = Client()
+    def handler():
+        cl.disconnect()
+        sys.exit()
 
+    signal.signal(signal.SIGINT, handler)
 
-def handler():
-    cl.disconnect()
-    sys.exit()
+    if cl.connect_to_server('localhost', 8000):
+        ans = input(_("Gui y/n"))
+        if ans == "y":
+            cl.gui = True
+        else:
+            cl.gui = False
+            ans = input("Language: en [1], ua [2]")
+            if ans == "1":
+                el = gettext.translation('base', localedir='locales', languages=['en'])
+                el.install()
+                _ = el.gettext
+        while True:
+            try:
+                if not cl.gui:
+                    if cl.state == "connected":
+                        answer = input(_("Register or Login?[r/l]"))
+                        if answer == "r":
+                            cl.register()
+                        elif answer == "l":
+                            cl.log_in()
+                    if cl.state == "logged":
+                        answer = input(_("Logout, post message or group action?[l/p/g]"))
+                        if answer == "l":
+                            cl.log_out()
+                        if answer == "p":
+                            group = input(_("Which group?"))
+                            msg = input(_("Type here: "))
+                            print(msg)
+                            cl.post_message(msg, group)
+                        if answer == "g":
+                            reply = input(_("Create group, delete group, add users or exclude users?[c/d/a/e]: "))
+                            if reply == "c":
+                                msg = input(_("Group name: "))
+                                users = input(_("List the users:"))
+                                users = users.split(",")
+                                cl.create_group(msg, users)
+                            elif reply == "d":
+                                msg = input(_("Group name: "))
+                                cl.delete_group(msg)
+                            elif reply == "a":
+                                msg = input(_("Group name: "))
+                                users = input(_("List the users:"))
+                                users = users.split(",")
+                                cl.add_to_group(msg, users)
+                            elif reply == "e":
+                                msg = input(_("Group name: "))
+                                users = input(_("List the users:"))
+                                users = users.split(",")
+                                cl.exclude_from_group(msg, users)
+                if cl.gui:
+                    cl.run_gui()
 
-
-signal.signal(signal.SIGINT, handler)
-
-if cl.connect_to_server('localhost', 8000):
-    ans = input(_("Gui y/n"))
-    if ans == "y":
-        cl.gui = True
-    else:
-        cl.gui = False
-        ans = input("Language: en [1], ua [2]")
-        if ans == "1":
-            el = gettext.translation('base', localedir='locales', languages=['en'])
-            el.install()
-            _ = el.gettext
-    while True:
-        try:
-            if not cl.gui:
-                if cl.state == "connected":
-                    answer = input(_("Register or Login?[r/l]"))
-                    if answer == "r":
-                        cl.register()
-                    elif answer == "l":
-                        cl.log_in()
-                if cl.state == "logged":
-                    answer = input(_("Logout, post message or group action?[l/p/g]"))
-                    if answer == "l":
-                        cl.log_out()
-                    if answer == "p":
-                        group = input(_("Which group?"))
-                        msg = input(_("Type here: "))
-                        print(msg)
-                        cl.post_message(msg, group)
-                    if answer == "g":
-                        reply = input(_("Create group, delete group, add users or exclude users?[c/d/a/e]: "))
-                        if reply == "c":
-                            msg = input(_("Group name: "))
-                            users = input(_("List the users:"))
-                            users = users.split(",")
-                            cl.create_group(msg, users)
-                        elif reply == "d":
-                            msg = input(_("Group name: "))
-                            cl.delete_group(msg)
-                        elif reply == "a":
-                            msg = input(_("Group name: "))
-                            users = input(_("List the users:"))
-                            users = users.split(",")
-                            cl.add_to_group(msg, users)
-                        elif reply == "e":
-                            msg = input(_("Group name: "))
-                            users = input(_("List the users:"))
-                            users = users.split(",")
-                            cl.exclude_from_group(msg, users)
-            if cl.gui:
-                cl.run_gui()
-
-        except Exception as e:
-            cl.disconnect()
-            raise e
+            except Exception as e:
+                cl.disconnect()
+                raise e

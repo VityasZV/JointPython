@@ -3,7 +3,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
-        self.el = gettext.translation('base', localedir='locales', languages=['ua'])
+        locale_path = 'client/locales/'
+        self.el = gettext.translation('base', localedir=locale_path, languages=['ua'])
         self.el.install()
         _ = self.el.gettext
         self.lngs = ['en', 'ua']
@@ -57,9 +58,11 @@ class Ui_MainWindow(object):
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+
     def trsl(self, MainWindow):
         self.it = (self.it + 1) % 2
-        self.el = gettext.translation('base', localedir='locales', languages=[self.lngs[self.it]])
+        locale_path = 'client/locales/'
+        self.el = gettext.translation('base', localedir=locale_path, languages=[self.lngs[self.it]])
         self.el.install()
         self.retranslateUi(MainWindow)
 
