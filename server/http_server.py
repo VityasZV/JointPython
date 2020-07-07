@@ -329,7 +329,7 @@ class FullHTTPServer(MyHTTPServer):
                 self.send_response(receiver.connection, msg)
 
 
-if __name__ == '__main__':
+def run():
     host = 'localhost'
     port = 8000
     name = 'server'
@@ -339,3 +339,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         logging.info('server shut down')
         pass
+
+if __name__ == '__main__':
+    run()

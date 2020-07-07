@@ -29,7 +29,8 @@ class Ui_MainWindow(object):
         return a
 
     def retranslateUi(self, MainWindow):
-        el = gettext.translation('base', localedir='locales', languages=['ua'])
+        locale_path = 'client/locales/'
+        el = gettext.translation('base', localedir=locale_path, languages=['ua'])
         el.install()
         _ = el.gettext
         _translate = QtCore.QCoreApplication.translate

@@ -1,13 +1,12 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='PyChat',
-    version='',
-    packages=['client', 'server', 'http_classes', 'gui_templates'],
-    url='',
+    description='Simple Python chat app',
+    version='0.9',
+    packages=find_packages(),
+    url='https://github.com/VityasZV/JointPython',
     license='WTFPL',
     author='JointPythonTeam',
-    author_email='',
-    description='',
-    requires=["PyQt5", "psycopg2", "urllib3", "requests"]
+    install_requires=["PyQt5", "psycopg2", "urllib3", "requests"]
 )
