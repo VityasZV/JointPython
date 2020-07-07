@@ -8,5 +8,5 @@ setup(
     url='https://github.com/VityasZV/JointPython',
     license='WTFPL',
     author='JointPythonTeam',
-    requires=["PyQt5", "psycopg2", "urllib3", "requests"]
+    install_requires=["PyQt5", "psycopg2", "urllib3", "requests"]
 )
